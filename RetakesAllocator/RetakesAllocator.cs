@@ -52,7 +52,8 @@ public class RetakesAllocator : BasePlugin
     public override void Load(bool hotReload)
     {
         Configs.Shared.Module = ModuleDirectory;
-        MenuFileSystem.Initialize(ModuleDirectory);
+        var configDirectory = Configs.GetConfigDirectory(ModuleDirectory);
+        MenuFileSystem.Initialize(configDirectory);
 
         Log.Debug($"Loaded. Hot reload: {hotReload}");
         ResetState();
@@ -271,7 +272,15 @@ public class RetakesAllocator : BasePlugin
 
         var currentTeam = player!.Team;
 
-        if (Configs.GetConfigData().NumberOfExtraVipChancesForAwpWeapon == -1 && !Helpers.IsVip(player))
+        var awpMode = Configs.GetConfigData().GetAwpMode();
+        if (awpMode == AccessMode.Disabled)
+        {
+            var message = Translator.Instance["weapon_preference.awp_disabled"];
+            commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
+            return;
+        }
+
+        if (awpMode == AccessMode.VipOnly && !Helpers.HasAwpPermission(player))
         {
             var message = Translator.Instance["weapon_preference.only_vip_can_use"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
@@ -303,7 +312,15 @@ public class RetakesAllocator : BasePlugin
             return;
         }
 
-        if (!Helpers.IsVip(player!))
+        var ssgMode = Configs.GetConfigData().GetSsgMode();
+        if (ssgMode == AccessMode.Disabled)
+        {
+            var message = Translator.Instance["weapon_preference.ssg_disabled"];
+            commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
+            return;
+        }
+
+        if (ssgMode == AccessMode.VipOnly && !Helpers.HasSsgPermission(player!))
         {
             var message = Translator.Instance["weapon_preference.only_vip_can_use"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
@@ -347,7 +364,7 @@ public class RetakesAllocator : BasePlugin
             return;
         }
 
-        if (!Configs.GetConfigData().EnableZeusPreference)
+        if (!Configs.GetConfigData().IsZeusEnabled())
         {
             var message = Translator.Instance["guns_menu.zeus_disabled_message"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
@@ -530,7 +547,7 @@ public class RetakesAllocator : BasePlugin
         if (item is CsItem.Taser)
         {
             var config = Configs.GetConfigData();
-            if (!config.EnableZeusPreference)
+            if (!config.IsZeusEnabled())
             {
                 return RetStop();
             }
@@ -767,7 +784,8 @@ public class RetakesAllocator : BasePlugin
             Helpers.GetTeam,
             GiveDefuseKit,
             AllocateItemsForPlayer,
-            Helpers.IsVip,
+            Helpers.HasAwpPermission,
+            Helpers.HasSsgPermission,
             Helpers.HasEnemyStuffPermission,
             out var currentRoundType
         );

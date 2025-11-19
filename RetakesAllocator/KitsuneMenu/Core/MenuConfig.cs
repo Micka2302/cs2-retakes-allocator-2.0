@@ -29,7 +29,7 @@ public class MenuConfig
 
     public static MenuConfig Load()
     {
-        var configPath = MenuFileSystem.Combine("config", CONFIG_FILE);
+        var configPath = MenuFileSystem.Combine(CONFIG_FILE);
         MenuFileSystem.EnsureDirectoryForFile(configPath);
         var config = new MenuConfig();
 
@@ -57,7 +57,7 @@ public class MenuConfig
 
     private static void Save()
     {
-        var configPath = MenuFileSystem.Combine("config", CONFIG_FILE);
+        var configPath = MenuFileSystem.Combine(CONFIG_FILE);
         MenuFileSystem.EnsureDirectoryForFile(configPath);
         var configContent = @"{
     /* Configuration for KitsuneMenu

@@ -159,10 +159,28 @@ public class AdvancedGunMenu
         var menuTitle = Translator.Instance["guns_menu.title", teamDisplayName];
 
         var config = Configs.GetConfigData();
-        var isVip = Helpers.IsVip(player);
-        var canUseEnemyStuff = config.EnableEnemyStuffPreference && Helpers.HasEnemyStuffPermission(player);
+        var awpMode = config.GetAwpMode();
+        var ssgMode = config.GetSsgMode();
+        data.AwpOptionAvailable = awpMode != AccessMode.Disabled;
+        data.SsgOptionAvailable = ssgMode != AccessMode.Disabled;
+        data.CanUseAwpPreference = awpMode switch
+        {
+            AccessMode.Disabled => false,
+            AccessMode.Everyone => true,
+            AccessMode.VipOnly => Helpers.HasAwpPermission(player),
+            _ => false,
+        };
+        data.CanUseSsgPreference = ssgMode switch
+        {
+            AccessMode.Disabled => false,
+            AccessMode.Everyone => true,
+            AccessMode.VipOnly => Helpers.HasSsgPermission(player),
+            _ => false,
+        };
+        var canUseSniperPreferences = data.CanUseAwpPreference || data.CanUseSsgPreference;
+        var canUseEnemyStuff = Helpers.HasEnemyStuffPermission(player);
         var visibleItems = 3;
-        if (isVip)
+        if (canUseSniperPreferences)
         {
             visibleItems++;
         }
@@ -170,7 +188,7 @@ public class AdvancedGunMenu
         {
             visibleItems++;
         }
-        if (config.EnableZeusPreference)
+        if (config.IsZeusEnabled())
         {
             visibleItems++;
         }
@@ -225,7 +243,7 @@ public class AdvancedGunMenu
                 TextAlign.Left, MenuTextSize.Medium);
         }
 
-        if (isVip)
+        if (canUseSniperPreferences)
         {
             var sniperLabel = Translator.Instance["guns_menu.sniper_label"];
             var sniperChoices = new[]
@@ -288,7 +306,7 @@ public class AdvancedGunMenu
                 (ply, choice) => HandleEnemyStuffChoice(ply, data, choice, enemyStuffChoices, enemyStuffValues),
                 MenuTextSize.Large);
         }
-        if (config.EnableZeusPreference)
+        if (config.IsZeusEnabled())
         {
             var zeusChoices = new[]
             {
@@ -375,10 +393,30 @@ public class AdvancedGunMenu
     {
         if (choice == options[0])
         {
+            if (!data.AwpOptionAvailable)
+            {
+                Helpers.WriteNewlineDelimited(Translator.Instance["weapon_preference.awp_disabled"], player.PrintToChat);
+                return;
+            }
+            if (!data.CanUseAwpPreference)
+            {
+                Helpers.WriteNewlineDelimited(Translator.Instance["weapon_preference.only_vip_can_use"], player.PrintToChat);
+                return;
+            }
             ApplySniperPreference(player, data, CsItem.AWP);
         }
         else if (choice == options[1])
         {
+            if (!data.SsgOptionAvailable)
+            {
+                Helpers.WriteNewlineDelimited(Translator.Instance["weapon_preference.ssg_disabled"], player.PrintToChat);
+                return;
+            }
+            if (!data.CanUseSsgPreference)
+            {
+                Helpers.WriteNewlineDelimited(Translator.Instance["weapon_preference.only_vip_can_use"], player.PrintToChat);
+                return;
+            }
             ApplySniperPreference(player, data, CsItem.Scout);
         }
         else if (choice == options[2])
@@ -413,7 +451,11 @@ public class AdvancedGunMenu
     {
         if (!Helpers.HasEnemyStuffPermission(player))
         {
-            Helpers.WriteNewlineDelimited(Translator.Instance["weapon_preference.only_vip_can_use"], player.PrintToChat);
+            var mode = Configs.GetConfigData().GetEnemyStuffMode();
+            var permissionMessageKey = mode == AccessMode.Disabled
+                ? "weapon_preference.enemy_disabled"
+                : "weapon_preference.only_vip_can_use";
+            Helpers.WriteNewlineDelimited(Translator.Instance[permissionMessageKey], player.PrintToChat);
             return;
         }
 
@@ -542,6 +584,10 @@ public class AdvancedGunMenu
         public CsItem? PreferredSniper { get; set; }
         public bool ZeusEnabled { get; set; }
         public EnemyStuffTeamPreference EnemyStuffPreference { get; set; }
+        public bool AwpOptionAvailable { get; set; }
+        public bool SsgOptionAvailable { get; set; }
+        public bool CanUseAwpPreference { get; set; }
+        public bool CanUseSsgPreference { get; set; }
     }
 }
 

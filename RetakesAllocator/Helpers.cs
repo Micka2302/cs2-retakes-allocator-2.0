@@ -200,7 +200,11 @@ public static class Helpers
         return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     }
 
-    public static bool IsVip(CCSPlayerController player) => AdminManager.PlayerHasPermissions(player, "@css/vip");
+    public static bool HasAwpPermission(CCSPlayerController player) =>
+        PlayerHasPermission(player, Configs.GetConfigData().AwpPermission);
+
+    public static bool HasSsgPermission(CCSPlayerController player) =>
+        PlayerHasPermission(player, Configs.GetConfigData().SsgPermission);
 
     public static bool PlayerHasPermission(CCSPlayerController player, string? permission)
     {
@@ -215,13 +219,14 @@ public static class Helpers
 
     public static bool HasEnemyStuffPermission(CCSPlayerController player)
     {
-        var permission = Configs.GetConfigData().EnemyStuffPermission;
-        if (string.IsNullOrWhiteSpace(permission))
+        var config = Configs.GetConfigData();
+        return config.GetEnemyStuffMode() switch
         {
-            return true;
-        }
-
-        return PlayerHasPermission(player, permission);
+            AccessMode.Disabled => false,
+            AccessMode.Everyone => true,
+            AccessMode.VipOnly => PlayerHasPermission(player, config.EnemyStuffPermission),
+            _ => false,
+        };
     }
 
     public static async Task<bool> DownloadMissingFiles()

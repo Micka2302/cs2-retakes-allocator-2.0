@@ -41,7 +41,7 @@ public class MenuTranslations
 
     public static MenuTranslations Load()
     {
-        var translationsPath = MenuFileSystem.Combine("config", TRANSLATIONS_FILE);
+        var translationsPath = MenuFileSystem.Combine(TRANSLATIONS_FILE);
         MenuFileSystem.EnsureDirectoryForFile(translationsPath);
         var translations = new MenuTranslations();
 
@@ -68,7 +68,7 @@ public class MenuTranslations
 
     private static void Save()
     {
-        var translationsPath = MenuFileSystem.Combine("config", TRANSLATIONS_FILE);
+        var translationsPath = MenuFileSystem.Combine(TRANSLATIONS_FILE);
         var translationsContent = @"{
     /* Menu UI text translations */
 

@@ -14,8 +14,9 @@ public class RoundStartTests : BaseTestFixture
             x => CsTeam.None,
             x => {},
             (x, y, z) => {},
-            x => false,
-            x => false,
+            x => true,
+            x => true,
+            x => true,
             out _
         );
     }

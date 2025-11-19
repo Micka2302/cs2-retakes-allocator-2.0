@@ -95,9 +95,44 @@ menu the entire round, you can tweak the `mp_buytime` variable as you see fit.
 
 ### Configuration
 
-The config file is located in the plugin folder under `config/config.json`.
+The config file is located at `addons/counterstrikesharp/configs/plugins/RetakesAllocator/config.json`. The generated JSON is grouped by feature so
+that related options stay together:
+
+- `Config`: Core gameplay toggles, announcement settings, chat formatting, and signature updates.
+- `RoundTypes`: All of the round-selection knobs (`RoundTypeSelection`, `RoundTypePercentages`, etc.).
+- `Weapons`: The global weapon pool, selection modes, and default loadouts.
+- `AWP` / `SSG`: Everything related to the sniper queues, including VIP chance boosts and team limits.
+- `EnemyStuff`: Controls for the enemy-weapon preference feature.
+- `Zeus`: The Zeus preference toggle, chance, and max-per-team limits.
+- `Nades`: Map/team-specific nade caps.
+- `Database`: Provider, connection string, and migration behavior.
+
+For example, a minimal config using the new layout looks like this:
+
+```json
+{
+  "Config": {
+    "EnableRoundTypeAnnouncement": true,
+    "ChatMessagePluginName": "Retakes"
+  },
+  "RoundTypes": {
+    "RoundTypeSelection": "Random"
+  },
+  "Weapons": {
+    "EnableAllWeaponsForEveryone": false
+  },
+  "AWP": {
+    "EnableAwp": 2
+  },
+  "SSG": {
+    "EnableSsg": 2
+  }
+}
+```
 
 #### Round Type Configuration
+
+All of the round rotation values live under the `RoundTypes` object in the JSON file:
 
 - `RoundTypeSelection`: Which round type selection system to use. The options are:
     - `Random`: Randomly select a round based on the percentages set in `RoundTypePercentages`
@@ -142,54 +177,72 @@ both `M4A1S` and `SilencedM4` are valid weapon names, but `weapon_m4a1_silencer`
 
 Here are the weapon configs:
 
-- `UsableWeapons`: The weapons that can be allocated. Any weapon removed from this list cannot be used.
-- `DefaultWeapons`: This lets you configure the default weapon for each weapon allocation type. The type of this config
-  is map of `Team => WeaponAllocationType => Item`.
+- `Weapons.UsableWeapons`: The weapons that can be allocated. Any weapon removed from this list cannot be used.
+- `Weapons.AllowedWeaponSelectionTypes`: Which of the allocation systems (`PlayerChoice`, `Random`, `Default`) are
+  enabled.
+- `Weapons.DefaultWeapons`: This lets you configure the default weapon for each weapon allocation type. The type of
+  this config is map of `Team => WeaponAllocationType => Item`.
     - The valid keys for `DefaultWeapons` are: `Terrorist` and `CounterTerrorist`
     - Under each of those, the valid keys are:
         - `PistolRound`: The pistol round pistol
         - `Secondary`: The pistol for non-pistol rounds
         - `HalfBuyPrimary`: The primary weapon for half buy rounds
         - `FullBuyPrimary`: The primary weapon for full buy rounds
-    - The valid values for each subkey this are any `CsItem` that is a weapon.
-      To better understand how `DefaultWeapons` works, here is the default config for `DefaultWeapons` as an example:
+    - The valid values for each subkey are any `CsItem` that is a weapon.
+- `Weapons.EnableAllWeaponsForEveryone`: If `true`, Counter-Terrorists and Terrorists can equip each other's
+  primary/secondary weapons (VIP-only weapons keep their limits).
+
+To better understand how `DefaultWeapons` works, here is the default config for `DefaultWeapons` as an example:
 ```json
 {
-  "DefaultWeapons": {
-    "Terrorist": {
-      "PistolRound": "Glock",
-      "Secondary": "Deagle",
-      "HalfBuyPrimary": "Mac10",
-      "FullBuyPrimary": "AK47"
-    },
-    "CounterTerrorist": {
-      "PistolRound": "USPS",
-      "Secondary": "Deagle",
-      "HalfBuyPrimary": "MP9",
-      "FullBuyPrimary": "M4A1"
+  "Weapons": {
+    "DefaultWeapons": {
+      "Terrorist": {
+        "PistolRound": "Glock",
+        "Secondary": "Deagle",
+        "HalfBuyPrimary": "Mac10",
+        "FullBuyPrimary": "AK47"
+      },
+      "CounterTerrorist": {
+        "PistolRound": "USPS",
+        "Secondary": "Deagle",
+        "HalfBuyPrimary": "MP9",
+        "FullBuyPrimary": "M4A1"
+      }
     }
   }
 }
 ```
 
 
-- `EnableZeusPreference`: Enables the Zeus toggle in the Kitsune loadout menu. When disabled, no one receives a Zeus and the menu entry is hidden. Defaults to `false`.
-- `EnableEnemyStuffPreference`: Enables the enemy weapon toggle in the Kitsune loadout menu for players holding the configured permission flag. Players can enable enemy weapons separately for Terrorist, Counter-Terrorist, or both teams. Defaults to `false`.
-- `EnemyStuffPermission`: Permission flag required to see and toggle enemy weapons when the feature is enabled. Defaults to `@css/vip`.
-- `EnableAllWeaponsForEveryone`: When `true`, Counter-Terrorists and Terrorists can equip each other's primary and secondary weapons while VIP-restricted weapons keep their existing limits. Defaults to `false`.
-- `AllowAwpWeaponForEveryone`: If `true`, everyone can get the AWP. This overrides every other "preferred" weapon
-  setting. Defaults to `false`.
-- `AllowSsgWeaponForEveryone`: If `true`, everyone with an SSG preference can receive one. Defaults to `false`.
-- `MaxAwpWeaponsPerTeam`: The maximum number of AWPs for each team.
-- `MaxSsgWeaponsPerTeam`: The maximum number of SSGs for each team.
-- `MinPlayersPerTeamForAwpWeapon`: The minimum number of players on each team necessary for someone to get an AWP.
-- `MinPlayersPerTeamForSsgWeapon`: The minimum number of players on each team necessary for someone to get an SSG.
-- `ChanceForAwpWeapon`: The % chance that the round will have an AWP.
-- `ChanceForSsgWeapon`: The % chance that the round will have an SSG.
-- `ChanceForEnemyStuff`: The % chance that a player who has enabled enemy weapons will receive gear from the opposing team.
-- `MaxEnemyStuffPerTeam`: Maximum number of players per team who can receive enemy weapons each round. Set to `-1` for no limit.
+- `AWP.EnableAwp`: Controls who can participate in the AWP queue. `0` disables the queue entirely, `1` lets everyone
+  opt in, and `2` restricts the queue to players who pass the permission check.
+- `AWP.AwpPermission`: Permission flag that must pass when `AWP.EnableAwp` is set to `2`. Defaults to `@css/vip`.
+- `AWP.ChanceForAwpWeapon`: The % chance that the round will have an AWP.
+- `AWP.MaxAwpWeaponsPerTeam`: The maximum number of AWPs for each team.
+- `AWP.MinPlayersPerTeamForAwpWeapon`: The minimum number of players on each team necessary for someone to get an AWP.
+
+- `SSG.EnableSsg`: Controls who can participate in the SSG queue. `0` disables it, `1` lets everyone opt in, and `2` limits the queue to players who pass the configured permission check.
+- `SSG.SsgPermission`: Permission flag that must pass when `SSG.EnableSsg` is set to `2`. Defaults to `@css/vip`.
+- `SSG.ChanceForSsgWeapon`: The % chance that the round will have an SSG.
+- `SSG.MaxSsgWeaponsPerTeam`: The maximum number of SSGs for each team.
+- `SSG.MinPlayersPerTeamForSsgWeapon`: The minimum number of players on each team necessary for someone to get an SSG.
+
+- `EnemyStuff.EnableEnemyStuff`: Controls who can enable enemy weapon preferences in the Kitsune loadout menu. `0` hides the option entirely, `1` lets everyone toggle it, and `2` requires the configured permission.
+- `EnemyStuff.EnemyStuffPermission`: Permission flag required to see and toggle enemy weapons when the feature is enabled.
+  Defaults to `@css/vip`.
+- `EnemyStuff.ChanceForEnemyStuff`: The % chance that a player who has enabled enemy weapons will receive gear
+  from the opposing team.
+- `EnemyStuff.MaxEnemyStuffPerTeam`: Maximum number of players per team who can receive enemy weapons each round, keyed
+  by `Terrorist` and `CounterTerrorist`. Set a team to `-1` for no limit.
+
+- `Zeus.EnableZeus`: `0` disables the Zeus toggle and hides it from the menu; `1` allows everyone to opt in.
+- `Zeus.ChanceForZeusWeapon`: The % chance that a player who has the Zeus preference enabled will get a Zeus.
+- `Zeus.MaxZeusPerTeam`: The maximum number of Zeuses per team.
 
 #### Nade Configuration
+
+The `Nades` section contains two knobs:
 
 - `MaxNades`: You can set the maximum number of each type of nade for each team and on each map (or default). By default
   the config includes some limits that you may want to change.
@@ -199,19 +252,21 @@ Here are the weapon configs:
 
 ```json
 {
-  "MaxNades": {
-    "GLOBAL": {
-      "Terrorist": {
-        "Flashbang": 2,
-        "Smoke": 1,
-        "Molotov": 1,
-        "HighExplosive": 1
-      },
-      "CounterTerrorist": {
-        "Flashbang": 2,
-        "Smoke": 1,
-        "Molotov": 2,
-        "HighExplosive": 1
+  "Nades": {
+    "MaxNades": {
+      "GLOBAL": {
+        "Terrorist": {
+          "Flashbang": 2,
+          "Smoke": 1,
+          "Molotov": 1,
+          "HighExplosive": 1
+        },
+        "CounterTerrorist": {
+          "Flashbang": 2,
+          "Smoke": 1,
+          "Molotov": 2,
+          "HighExplosive": 1
+        }
       }
     }
   }
@@ -222,24 +277,26 @@ but you specifically want to allow 2 smokes for CT on mirage, you can do:
 
 ```json
 {
-  "MaxNades": {
-    "GLOBAL": {
-      "Terrorist": {
-        "Flashbang": 2,
-        "Smoke": 1,
-        "Molotov": 1,
-        "HighExplosive": 1
+  "Nades": {
+    "MaxNades": {
+      "GLOBAL": {
+        "Terrorist": {
+          "Flashbang": 2,
+          "Smoke": 1,
+          "Molotov": 1,
+          "HighExplosive": 1
+        },
+        "CounterTerrorist": {
+          "Flashbang": 2,
+          "Smoke": 1,
+          "Incendiary": 2,
+          "HighExplosive": 1
+        }
       },
-      "CounterTerrorist": {
-        "Flashbang": 2,
-        "Smoke": 1,
-        "Incendiary": 2,
-        "HighExplosive": 1
-      }
-    },
-    "de_mirage": {
-      "CounterTerrorist": {
-        "Smoke": 2
+      "de_mirage": {
+        "CounterTerrorist": {
+          "Smoke": 2
+        }
       }
     }
   }
@@ -264,7 +321,7 @@ The valid keys for nades on `CounterTerrorist` are:
 
 If you mix up `Incendiary` and `Molotov`, the plugin will fix it for you.
 
-- `MaxTeamNades` - This config works similarly to `MaxNades`, except it affects the max number of nades an entire team
+- `Nades.MaxTeamNades` - This config works similarly to `Nades.MaxNades`, except it affects the max number of nades an entire team
   can have. The structure is the same as `MaxNades` except that after the map and team keys, it maps a round type to a
   max nade setting. The possible max nade settings are:
     - `One`, `Two`, ... until `Ten`
@@ -280,20 +337,13 @@ room for it*.
 #### Other Configuration
 
 - `EnableNextRoundTypeVoting`: Whether to allow voting for the next round type via `!nextround`. `false` by default.
-- `NumberOfExtraVipChancesForAwpWeapon`: When randomly selecting AWPs per team (ie. "AWP queue"), how
-  many extra chances should VIPs get.
-    - The default is 1, meaning VIPs will get 1 extra chance. For example, lets say
-      there are 3 players on the team and this config is set to 1. Normally each person would have a 33% chance of
-      getting
-      the AWP, but in this case, since one of the players is a VIP, the VIP will get a 50% chance of getting the AWP,
-      and
-      the other two players will each have 25% chance of getting the AWP.
-    - If you set this to 0, there will be no preference for VIPs.
-    - If you set this to -1, only VIPs can get the AWP
+- `EnableAwp`: When set to `0`, the AWP queue is disabled. When set to `1`, any player can opt in and AWPs will be
+  distributed evenly across the queued players. When set to `2`, only players with the configured `AwpPermission` can
+  participate in the queue.
+- `AwpPermission`: Permission string that is checked when `EnableAwp` is `2`. Defaults to `@css/vip`.
 - `ChanceForAwpWeapon`: This allows you to determine chance of players getting the AWP. (ie. 100 = %100, 50 = %50)
-- `NumberOfExtraVipChancesForSsgWeapon`: When randomly selecting SSGs per team, how many extra chances VIPs get.
-    - The behaviour matches the AWP queue. `1` gives VIPs an extra entry, `0` removes the bonus and `-1` restricts SSGs
-      to VIPs.
+- `EnableSsg`: When set to `0`, the SSG queue is disabled. When set to `1`, any player can opt in and SSGs will be distributed evenly across the queued players. When set to `2`, only players with the configured `SsgPermission` can participate in the queue.
+- `SsgPermission`: Permission string that is checked when `EnableSsg` is `2`. Defaults to `@css/vip`.
 - `ChanceForSsgWeapon`: This allows you to determine the chance of players getting the SSG. (ie. 100 = %100, 50 = %50)
 - `AllowedWeaponSelectionTypes`: The types of weapon allocation that are allowed.
     - Choices:
