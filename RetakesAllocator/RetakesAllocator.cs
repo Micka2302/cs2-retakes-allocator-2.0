@@ -52,8 +52,6 @@ public class RetakesAllocator : BasePlugin
     public override void Load(bool hotReload)
     {
         Configs.Shared.Module = ModuleDirectory;
-        var configDirectory = Configs.GetConfigDirectory(ModuleDirectory);
-        MenuFileSystem.Initialize(configDirectory);
 
         Log.Debug($"Loaded. Hot reload: {hotReload}");
         ResetState();

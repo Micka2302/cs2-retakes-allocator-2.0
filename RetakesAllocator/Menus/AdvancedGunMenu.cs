@@ -195,15 +195,6 @@ public class AdvancedGunMenu
         var menuBuilder = KitsuneMenu.KitsuneMenu.Create(menuTitle)
             .MaxVisibleItems(System.Math.Max(visibleItems, 4));
 
-        if (GlobalMenuManager.Config.FreezePlayer)
-        {
-            menuBuilder.ForceFreeze();
-        }
-        else
-        {
-            menuBuilder.NoFreeze();
-        }
-
         var primaryNames = data.PrimaryOptions.Select(static weapon => weapon.GetName()).ToArray();
         if (primaryNames.Length > 0)
         {
