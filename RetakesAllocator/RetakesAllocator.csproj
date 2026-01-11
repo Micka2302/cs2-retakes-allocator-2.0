@@ -9,8 +9,18 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="CounterStrikeSharp.API" Version="1.0.329" />
+        <PackageReference Include="CounterStrikeSharp.API" Version="1.0.353" />
         <PackageReference Include="RetakesPluginShared" Version="2.0.0" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <KitsuneMenuSharedPath Condition="'$(KitsuneMenuSharedPath)' == ''">$(MSBuildThisFileDirectory)..\game\csgo\addons\counterstrikesharp\shared\KitsuneMenu\KitsuneMenu.dll</KitsuneMenuSharedPath>
+        <KitsuneMenuLocalBinPath Condition="'$(KitsuneMenuLocalBinPath)' == ''">$(MSBuildThisFileDirectory)KitsuneMenu\src\bin\Release\net8.0\KitsuneMenu.dll</KitsuneMenuLocalBinPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="KitsuneMenu" HintPath="$(KitsuneMenuSharedPath)" Condition="Exists('$(KitsuneMenuSharedPath)')" Private="false" />
+        <Reference Include="KitsuneMenu" HintPath="$(KitsuneMenuLocalBinPath)" Condition="!Exists('$(KitsuneMenuSharedPath)') and Exists('$(KitsuneMenuLocalBinPath)')" Private="false" />
     </ItemGroup>
 
     <ItemGroup>
@@ -29,6 +39,14 @@
         <Exec Command="powershell cp -Force -Recurse &quot;$(TargetDir)runtimes\win-x64 $(TargetDir)..\$(TargetName)\runtimes&quot;" />
         <Exec Command="powershell Compress-Archive -Force -Path &quot;$(TargetDir)..\$(TargetName)\*&quot; -DestinationPath &quot;$(TargetDir)..\$(TargetName).zip&quot; " />
     </Target>
+    <ItemGroup>
+        <Compile Remove="KitsuneMenu/**/*.cs" />
+        <Compile Remove="**/bin/**/*.cs" />
+        <Compile Remove="**/obj/**/*.cs" />
+    </ItemGroup>
+    <ItemGroup Condition="!Exists('$(KitsuneMenuSharedPath)') and !Exists('$(KitsuneMenuLocalBinPath)')">
+        <Compile Include="KitsuneMenu/src/**/*.cs" />
+    </ItemGroup>
     <ItemGroup>
         <None Update="lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>

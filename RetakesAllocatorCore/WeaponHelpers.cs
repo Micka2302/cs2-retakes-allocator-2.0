@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Utils;
 using RetakesAllocatorCore.Config;
@@ -110,6 +109,20 @@ public static class WeaponHelpers
 
     private static readonly ICollection<CsItem> _smgsForCt =
         _sharedMidRange.Concat(_ctMidRange).Where(i => (int)i <= _maxSmgItemValue).ToHashSet();
+
+    private static readonly ICollection<CsItem> _shotgunsShared = new HashSet<CsItem>
+    {
+        CsItem.XM1014,
+        CsItem.Nova,
+    };
+
+    private static readonly ICollection<CsItem> _shotgunsForT = _shotgunsShared
+        .Concat(new[] {CsItem.SawedOff})
+        .ToHashSet();
+
+    private static readonly ICollection<CsItem> _shotgunsForCt = _shotgunsShared
+        .Concat(new[] {CsItem.MAG7})
+        .ToHashSet();
 
     private static readonly ICollection<CsItem> _tRifles = new HashSet<CsItem>
     {
@@ -290,6 +303,20 @@ public static class WeaponHelpers
 
         var availableWeapons = new HashSet<CsItem>(_validWeaponsByTeamAndAllocationType[team][allocationType]);
 
+        if (allocationType == WeaponAllocationType.FullBuyPrimary && Configs.IsLoaded())
+        {
+            var config = Configs.GetConfigData();
+            if (config.EnableWeaponShotguns)
+            {
+                availableWeapons.UnionWith(GetShotgunsForTeam(team));
+            }
+
+            if (config.EnableWeaponPms)
+            {
+                availableWeapons.UnionWith(GetSmgsForTeam(team));
+            }
+        }
+
         var allowAllWeapons = Configs.IsLoaded() && Configs.GetConfigData().EnableAllWeaponsForEveryone;
         if (!allowAllWeapons || allocationType == WeaponAllocationType.Preferred)
         {
@@ -302,6 +329,20 @@ public static class WeaponHelpers
             otherAllocations.TryGetValue(allocationType, out var otherWeapons))
         {
             availableWeapons.UnionWith(otherWeapons);
+        }
+
+        if (allocationType == WeaponAllocationType.FullBuyPrimary && Configs.IsLoaded())
+        {
+            var config = Configs.GetConfigData();
+            if (config.EnableWeaponShotguns)
+            {
+                availableWeapons.UnionWith(GetShotgunsForTeam(otherTeam));
+            }
+
+            if (config.EnableWeaponPms)
+            {
+                availableWeapons.UnionWith(GetSmgsForTeam(otherTeam));
+            }
         }
 
         return availableWeapons;
@@ -417,47 +458,83 @@ public static class WeaponHelpers
         return _ssgPreferredWeapons.Contains(weapon) || IsRandomSniperPreference(weapon);
     }
 
-    public static IList<T> SelectPreferredPlayers<T>(IEnumerable<T> players, Func<T, bool> isVip, CsTeam team)
+    private static ICollection<CsItem> GetShotgunsForTeam(CsTeam team)
+    {
+        return team switch
+        {
+            CsTeam.Terrorist => _shotgunsForT,
+            CsTeam.CounterTerrorist => _shotgunsForCt,
+            _ => Array.Empty<CsItem>(),
+        };
+    }
+
+    private static ICollection<CsItem> GetSmgsForTeam(CsTeam team)
+    {
+        return team switch
+        {
+            CsTeam.Terrorist => _smgsForT,
+            CsTeam.CounterTerrorist => _smgsForCt,
+            _ => Array.Empty<CsItem>(),
+        };
+    }
+
+    public static IList<T> SelectPreferredPlayers<T>(IEnumerable<T> players, Func<T, bool> hasPermission, CsTeam team)
     {
         var config = Configs.GetConfigData();
+        var awpMode = config.GetAwpMode();
         return SelectPreferredPlayersCore(
             players,
-            isVip,
+            hasPermission,
             team,
-            config.AllowAwpWeaponForEveryone,
+            new SniperSelectionSettings
+            {
+                Enabled = awpMode != AccessMode.Disabled,
+                AllowEveryone = awpMode == AccessMode.Everyone,
+                VipOnly = awpMode == AccessMode.VipOnly,
+                ExtraVipChances = 0,
+            },
             config.MaxAwpWeaponsPerTeam,
-            config.MinPlayersPerTeamForAwpWeapon,
-            config.NumberOfExtraVipChancesForAwpWeapon
+            config.MinPlayersPerTeamForAwpWeapon
         );
     }
 
-    public static IList<T> SelectPreferredSsgPlayers<T>(IEnumerable<T> players, Func<T, bool> isVip, CsTeam team)
+    public static IList<T> SelectPreferredSsgPlayers<T>(IEnumerable<T> players, Func<T, bool> hasPermission, CsTeam team)
     {
         var config = Configs.GetConfigData();
+        var ssgMode = config.GetSsgMode();
         return SelectPreferredPlayersCore(
             players,
-            isVip,
+            hasPermission,
             team,
-            config.AllowSsgWeaponForEveryone,
+            new SniperSelectionSettings
+            {
+                Enabled = ssgMode != AccessMode.Disabled,
+                AllowEveryone = ssgMode == AccessMode.Everyone,
+                VipOnly = ssgMode == AccessMode.VipOnly,
+                ExtraVipChances = 0,
+            },
             config.MaxSsgWeaponsPerTeam,
-            config.MinPlayersPerTeamForSsgWeapon,
-            config.NumberOfExtraVipChancesForSsgWeapon
+            config.MinPlayersPerTeamForSsgWeapon
         );
     }
 
     private static IList<T> SelectPreferredPlayersCore<T>(
         IEnumerable<T> players,
-        Func<T, bool> isVip,
+        Func<T, bool> hasPermission,
         CsTeam team,
-        bool allowForEveryone,
+        SniperSelectionSettings settings,
         IDictionary<CsTeam, int> maxWeaponsPerTeam,
-        IDictionary<CsTeam, int> minPlayersPerTeam,
-        int numberOfExtraVipChances
+        IDictionary<CsTeam, int> minPlayersPerTeam
     )
     {
+        if (!settings.Enabled)
+        {
+            return new List<T>();
+        }
+
         var playersList = players.ToList();
 
-        if (allowForEveryone)
+        if (settings.AllowEveryone)
         {
             return new List<T>(playersList);
         }
@@ -483,24 +560,25 @@ public static class WeaponHelpers
         var choicePlayers = new List<T>();
         foreach (var p in playersList)
         {
-            if (numberOfExtraVipChances == -1)
-            {
-                if (isVip(p))
-                {
-                    choicePlayers.Add(p);
-                }
-            }
-            else
+        if (settings.VipOnly && !hasPermission(p))
+        {
+            continue;
+        }
+
+        choicePlayers.Add(p);
+
+        if (!settings.VipOnly && settings.ExtraVipChances > 0 && hasPermission(p))
+        {
+            for (var i = 0; i < settings.ExtraVipChances; i++)
             {
                 choicePlayers.Add(p);
-                if (isVip(p))
-                {
-                    for (var i = 0; i < numberOfExtraVipChances; i++)
-                    {
-                        choicePlayers.Add(p);
-                    }
-                }
             }
+            }
+        }
+
+        if (choicePlayers.Count == 0)
+        {
+            return new List<T>();
         }
 
         Utils.Shuffle(choicePlayers);
@@ -562,6 +640,14 @@ public static class WeaponHelpers
         }
 
         return new HashSet<RoundType>();
+    }
+
+    private record SniperSelectionSettings
+    {
+        public bool Enabled { get; init; }
+        public bool AllowEveryone { get; init; }
+        public bool VipOnly { get; init; }
+        public int ExtraVipChances { get; init; }
     }
 
     public static ICollection<CsItem> FindValidWeaponsByName(string needle)
@@ -836,7 +922,7 @@ public static class WeaponHelpers
     )
     {
         var config = Configs.GetConfigData();
-        if (!config.EnableEnemyStuffPreference || config.ChanceForEnemyStuff <= 0)
+        if (config.GetEnemyStuffMode() == AccessMode.Disabled || config.ChanceForEnemyStuff <= 0)
         {
             return weapon;
         }

@@ -1,5 +1,6 @@
 using System.Data;
 using System.Reflection;
+using System.Threading;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,8 @@ namespace RetakesAllocatorCore.Db;
 
 public class Queries
 {
+    private static readonly SemaphoreSlim UpsertSemaphore = new(1, 1);
+
     public static async Task<UserSetting?> GetUserSettings(ulong userId)
     {
         return await Db.GetInstance().UserSettings.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
@@ -24,27 +27,35 @@ public class Queries
             Log.Debug("Encountered userid 0, not upserting user settings");
             return null;
         }
-        
-        Log.Debug($"Upserting settings for {userId}");
 
-        var instance = Db.GetInstance();
-        var isNew = false;
-        var userSettings = await instance.UserSettings.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
-        if (userSettings is null)
+        await UpsertSemaphore.WaitAsync();
+        try
         {
-            userSettings = new UserSetting {UserId = userId};
-            await instance.UserSettings.AddAsync(userSettings);
-            isNew = true;
+            Log.Debug($"Upserting settings for {userId}");
+
+            var instance = Db.GetInstance();
+            var isNew = false;
+            var userSettings = await instance.UserSettings.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
+            if (userSettings is null)
+            {
+                userSettings = new UserSetting {UserId = userId};
+                await instance.UserSettings.AddAsync(userSettings);
+                isNew = true;
+            }
+
+            instance.Entry(userSettings).State = isNew ? EntityState.Added : EntityState.Modified;
+
+            mutation(userSettings);
+
+            await instance.SaveChangesAsync();
+            instance.Entry(userSettings).State = EntityState.Detached;
+
+            return userSettings;
         }
-
-        instance.Entry(userSettings).State = isNew ? EntityState.Added : EntityState.Modified;
-
-        mutation(userSettings);
-
-        await instance.SaveChangesAsync();
-        instance.Entry(userSettings).State = EntityState.Detached;
-
-        return userSettings;
+        finally
+        {
+            UpsertSemaphore.Release();
+        }
     }
 
     public static async Task SetWeaponPreferenceForUserAsync(ulong userId, CsTeam team,

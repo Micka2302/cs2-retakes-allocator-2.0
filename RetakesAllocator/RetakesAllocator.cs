@@ -46,13 +46,13 @@ public class RetakesAllocator : BasePlugin
     private bool _announceBombsite;
     private bool _bombsiteAnnounceOneTime;
     private bool _weaponDataSignatureFailed;
+    private bool _customWarmupActive;
 
     #region Setup
 
     public override void Load(bool hotReload)
     {
         Configs.Shared.Module = ModuleDirectory;
-        MenuFileSystem.Initialize(ModuleDirectory);
 
         Log.Debug($"Loaded. Hot reload: {hotReload}");
         ResetState();
@@ -271,7 +271,15 @@ public class RetakesAllocator : BasePlugin
 
         var currentTeam = player!.Team;
 
-        if (Configs.GetConfigData().NumberOfExtraVipChancesForAwpWeapon == -1 && !Helpers.IsVip(player))
+        var awpMode = Configs.GetConfigData().GetAwpMode();
+        if (awpMode == AccessMode.Disabled)
+        {
+            var message = Translator.Instance["weapon_preference.awp_disabled"];
+            commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
+            return;
+        }
+
+        if (awpMode == AccessMode.VipOnly && !Helpers.HasAwpPermission(player))
         {
             var message = Translator.Instance["weapon_preference.only_vip_can_use"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
@@ -303,7 +311,15 @@ public class RetakesAllocator : BasePlugin
             return;
         }
 
-        if (!Helpers.IsVip(player!))
+        var ssgMode = Configs.GetConfigData().GetSsgMode();
+        if (ssgMode == AccessMode.Disabled)
+        {
+            var message = Translator.Instance["weapon_preference.ssg_disabled"];
+            commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
+            return;
+        }
+
+        if (ssgMode == AccessMode.VipOnly && !Helpers.HasSsgPermission(player!))
         {
             var message = Translator.Instance["weapon_preference.only_vip_can_use"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
@@ -347,7 +363,7 @@ public class RetakesAllocator : BasePlugin
             return;
         }
 
-        if (!Configs.GetConfigData().EnableZeusPreference)
+        if (!Configs.GetConfigData().IsZeusEnabled())
         {
             var message = Translator.Instance["guns_menu.zeus_disabled_message"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
@@ -457,7 +473,22 @@ public class RetakesAllocator : BasePlugin
             return HookResult.Continue;
         }
 
-        if (Helpers.IsWarmup())
+        var isWarmup = Helpers.IsWarmup();
+        var blockWarmupBuy = (isWarmup || _customWarmupActive) && acquireMethod == AcquireMethod.Buy;
+
+        if (blockWarmupBuy)
+        {
+            var controller = hook.GetParam<CCSPlayer_ItemServices>(0).Pawn.Value.Controller.Value?.As<CCSPlayerController>();
+            if (Helpers.PlayerIsValid(controller))
+            {
+                Helpers.WriteNewlineDelimited(Translator.Instance["warmup.buy_disabled"], controller.PrintToChat);
+            }
+
+            hook.SetReturn(AcquireResult.NotAllowedByMode);
+            return HookResult.Stop;
+        }
+
+        if (isWarmup)
         {
             return HookResult.Continue;
         }
@@ -530,7 +561,7 @@ public class RetakesAllocator : BasePlugin
         if (item is CsItem.Taser)
         {
             var config = Configs.GetConfigData();
-            if (!config.EnableZeusPreference)
+            if (!config.IsZeusEnabled())
             {
                 return RetStop();
             }
@@ -582,7 +613,19 @@ public class RetakesAllocator : BasePlugin
     {
         var player = @event.Userid;
         var pawnHandle = player?.PlayerPawn;
-        if (Helpers.IsWarmup() || !Helpers.PlayerIsValid(player) || pawnHandle is null || !pawnHandle.IsValid)
+
+        if (Helpers.IsWarmup())
+        {
+            if (_customWarmupActive && Helpers.PlayerIsValid(player))
+            {
+                Helpers.WriteNewlineDelimited(Translator.Instance["warmup.buy_disabled"], player!.PrintToChat);
+                ApplyCustomWarmupLoadout(player!, 0f);
+            }
+
+            return HookResult.Continue;
+        }
+
+        if (!Helpers.PlayerIsValid(player) || pawnHandle is null || !pawnHandle.IsValid)
         {
             return HookResult.Continue;
         }
@@ -767,7 +810,8 @@ public class RetakesAllocator : BasePlugin
             Helpers.GetTeam,
             GiveDefuseKit,
             AllocateItemsForPlayer,
-            Helpers.IsVip,
+            Helpers.HasAwpPermission,
+            Helpers.HasSsgPermission,
             Helpers.HasEnemyStuffPermission,
             out var currentRoundType
         );
@@ -881,6 +925,7 @@ public class RetakesAllocator : BasePlugin
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (@event == null) return HookResult.Continue;
         _bombsiteAnnounceOneTime = false;
+        _customWarmupActive = false;
         return HookResult.Continue;
     }
 
@@ -1030,11 +1075,43 @@ public class RetakesAllocator : BasePlugin
     }
 
     [GameEventHandler]
+    public HookResult OnEventPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
+    {
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+        if (@event == null || !_customWarmupActive || !Helpers.IsWarmup())
+        {
+            return HookResult.Continue;
+        }
+
+        var player = @event.Userid;
+        if (player == null || !player.IsValid || player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist))
+        {
+            return HookResult.Continue;
+        }
+
+        ApplyCustomWarmupLoadout(player, 0f);
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
     public HookResult OnEventRoundAnnounceWarmup(EventRoundAnnounceWarmup @event, GameEventInfo info)
     {
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-        if (!Configs.GetConfigData().ResetStateOnGameRestart || @event == null) return HookResult.Continue;
-        ResetState();
+        if (@event == null) return HookResult.Continue;
+
+        _customWarmupActive = Configs.GetConfigData().CustomWarmup;
+
+        if (Configs.GetConfigData().ResetStateOnGameRestart)
+        {
+            ResetState();
+        }
+
+        ScheduleCustomWarmupGiveAll();
+        if (_customWarmupActive)
+        {
+            Server.PrintToChatAll($"{MessagePrefix}Custom warmup enabled.");
+        }
+
         return HookResult.Continue;
     }
 
@@ -1131,6 +1208,155 @@ public class RetakesAllocator : BasePlugin
             var itemServices = new CCSPlayer_ItemServices(player.PlayerPawn.Value.ItemServices.Handle);
             itemServices.HasDefuser = true;
         });
+    }
+
+    private void ScheduleCustomWarmupGiveAll()
+    {
+        if (!_customWarmupActive || !Helpers.IsWarmup())
+        {
+            return;
+        }
+
+        ApplyCustomWarmupLoadoutToAllPlayers(0f);
+    }
+
+    private void ApplyCustomWarmupLoadout(CCSPlayerController player, float delaySeconds = 0f)
+    {
+        if (!_customWarmupActive || !Helpers.IsWarmup() || !Configs.GetConfigData().CustomWarmup)
+        {
+            return;
+        }
+
+        if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist))
+        {
+            return;
+        }
+
+        Action giveLoadout = () =>
+        {
+            if (!_customWarmupActive || !Helpers.IsWarmup() || !Helpers.PlayerIsValid(player) || player.PlayerPawn == null ||
+                !player.PlayerPawn.IsValid || !player.PawnIsAlive || player.PlayerPawn.Value?.WeaponServices is null)
+            {
+                return;
+            }
+
+            var warmupWeapon = player.Team switch
+            {
+                CsTeam.CounterTerrorist => Configs.GetConfigData().CustomWarmupWeaponCT,
+                CsTeam.Terrorist => Configs.GetConfigData().CustomWarmupWeaponT,
+                _ => (CsItem?) null
+            };
+
+            if (warmupWeapon is null || !WeaponHelpers.IsWeapon(warmupWeapon.Value))
+            {
+                return;
+            }
+
+            var warmupWeaponName = EnumUtils.GetEnumMemberAttributeValue(warmupWeapon.Value);
+            if (string.IsNullOrWhiteSpace(warmupWeaponName))
+            {
+                return;
+            }
+
+            StripAllWeapons(player);
+
+            if (Configs.GetConfigData().CapabilityWeaponPaints && CustomFunctions != null &&
+                CustomFunctions.PlayerGiveNamedItemEnabled())
+            {
+                CustomFunctions.PlayerGiveNamedItem(player, warmupWeaponName);
+            }
+            else
+            {
+                player.GiveNamedItem(warmupWeaponName);
+            }
+
+            var knifeName = player.Team switch
+            {
+                CsTeam.CounterTerrorist => EnumUtils.GetEnumMemberAttributeValue(CsItem.Knife),
+                CsTeam.Terrorist => EnumUtils.GetEnumMemberAttributeValue(CsItem.KnifeT),
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(knifeName))
+            {
+                player.GiveNamedItem(knifeName!);
+            }
+
+            var slotType = WeaponHelpers.GetSlotTypeForItem(warmupWeapon.Value);
+            var slotToSelect = WeaponHelpers.GetSlotNameForSlotType(slotType);
+            if (slotToSelect is not null && player.UserId is not null)
+            {
+                AddTimer(0.1f, () =>
+                {
+                    if (Helpers.IsWarmup() && Helpers.PlayerIsValid(player) && player.UserId is not null)
+                    {
+                        NativeAPI.IssueClientCommand((int) player.UserId, slotToSelect);
+                    }
+                }, TimerFlags.STOP_ON_MAPCHANGE);
+            }
+        };
+
+        if (delaySeconds <= 0)
+        {
+            giveLoadout();
+        }
+        else
+        {
+            AddTimer(delaySeconds, giveLoadout, TimerFlags.STOP_ON_MAPCHANGE);
+        }
+    }
+
+    private void ApplyCustomWarmupLoadoutToAllPlayers(float delaySeconds = 1.5f)
+    {
+        if (!_customWarmupActive || !Helpers.IsWarmup() || !Configs.GetConfigData().CustomWarmup)
+        {
+            return;
+        }
+
+        var warmupPlayers = Utilities.GetPlayers()
+            .Where(player => Helpers.PlayerIsValid(player) &&
+                             player.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist);
+
+        foreach (var player in warmupPlayers)
+        {
+            ApplyCustomWarmupLoadout(player, delaySeconds);
+        }
+    }
+
+    private void StripAllWeapons(CCSPlayerController player)
+    {
+        if (!Helpers.PlayerIsValid(player) || player.PlayerPawn?.Value?.WeaponServices is null)
+        {
+            return;
+        }
+
+        var weaponServices = player.PlayerPawn?.Value?.WeaponServices;
+        if (weaponServices is null)
+        {
+            return;
+        }
+
+        var weapons = weaponServices.MyWeapons;
+        if (weapons is null)
+        {
+            return;
+        }
+
+        foreach (var weaponHandle in weapons)
+        {
+            if (weaponHandle is not { IsValid: true, Value.IsValid: true })
+            {
+                continue;
+            }
+
+            var weapon = weaponHandle.Value;
+            if (string.IsNullOrWhiteSpace(weapon.DesignerName))
+            {
+                continue;
+            }
+
+            Utilities.RemoveItemByDesignerName(player, weapon.DesignerName, true);
+        }
     }
 
     #endregion

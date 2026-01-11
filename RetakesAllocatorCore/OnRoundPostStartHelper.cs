@@ -15,7 +15,8 @@ public class OnRoundPostStartHelper
         Func<T, CsTeam> getTeam,
         Action<T> giveDefuseKit,
         Action<T, ICollection<CsItem>, string?> allocateItemsForPlayer,
-        Func<T, bool> isVip,
+        Func<T, bool> hasAwpPermission,
+        Func<T, bool> hasSsgPermission,
         Func<T, bool> hasEnemyStuffPermission,
         out RoundType currentRoundType
     ) where T : notnull
@@ -66,11 +67,12 @@ public class OnRoundPostStartHelper
             Dictionary<T, CsItem> preferredWeapons,
             IEnumerable<T> eligiblePlayers,
             Func<IEnumerable<T>, Func<T, bool>, CsTeam, IList<T>> selectPlayers,
+            Func<T, bool> hasPermission,
             CsTeam team,
             Func<CsItem> randomWeaponFactory
         )
         {
-            var selectedPlayers = selectPlayers(eligiblePlayers, isVip, team);
+            var selectedPlayers = selectPlayers(eligiblePlayers, hasPermission, team);
             foreach (var selectedPlayer in selectedPlayers)
             {
                 if (preferredWeapons.ContainsKey(selectedPlayer))
@@ -129,6 +131,7 @@ public class OnRoundPostStartHelper
                     tPreferredWeapons,
                     tAwpEligible,
                     WeaponHelpers.SelectPreferredPlayers,
+                    hasAwpPermission,
                     CsTeam.Terrorist,
                     () => CsItem.AWP
                 );
@@ -136,6 +139,7 @@ public class OnRoundPostStartHelper
                     ctPreferredWeapons,
                     ctAwpEligible,
                     WeaponHelpers.SelectPreferredPlayers,
+                    hasAwpPermission,
                     CsTeam.CounterTerrorist,
                     () => CsItem.AWP
                 );
@@ -152,6 +156,7 @@ public class OnRoundPostStartHelper
                     tPreferredWeapons,
                     tSsgEligible,
                     WeaponHelpers.SelectPreferredSsgPlayers,
+                    hasSsgPermission,
                     CsTeam.Terrorist,
                     () => CsItem.Scout
                 );
@@ -159,6 +164,7 @@ public class OnRoundPostStartHelper
                     ctPreferredWeapons,
                     ctSsgEligible,
                     WeaponHelpers.SelectPreferredSsgPlayers,
+                    hasSsgPermission,
                     CsTeam.CounterTerrorist,
                     () => CsItem.Scout
                 );
@@ -211,13 +217,12 @@ public class OnRoundPostStartHelper
             var givePreferred = preferredOverride.HasValue;
 
             var enemyStuffQuotaAvailable =
-                config.EnableEnemyStuffPreference &&
                 hasEnemyStuffPermission(player) &&
                 userSetting is not null &&
                 userSetting.IsEnemyStuffEnabledForTeam(team) &&
                 team is CsTeam.Terrorist or CsTeam.CounterTerrorist &&
-                (config.MaxEnemyStuffPerTeam < 0 ||
-                 enemyStuffGrantedPerTeam[team] < config.MaxEnemyStuffPerTeam);
+                (config.GetMaxEnemyStuffForTeam(team) < 0 ||
+                 enemyStuffGrantedPerTeam[team] < config.GetMaxEnemyStuffForTeam(team));
 
             var weaponSelection = WeaponHelpers.GetWeaponsForRoundType(
                 roundType,
@@ -253,7 +258,7 @@ public class OnRoundPostStartHelper
                 }
             }
 
-            if (config.EnableZeusPreference && userSetting?.ZeusEnabled == true &&
+            if (config.IsZeusEnabled() && userSetting?.ZeusEnabled == true &&
                 team is CsTeam.Terrorist or CsTeam.CounterTerrorist)
             {
                 var maxZeusForTeam = config.MaxZeusPerTeam.TryGetValue(team, out var limit)

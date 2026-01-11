@@ -43,7 +43,7 @@ public class WeaponHelpersTests : BaseTestFixture
     {
         var config = new ConfigData
         {
-            EnableEnemyStuffPreference = true,
+            EnableEnemyStuff = 1,
             ChanceForEnemyStuff = 100,
             AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
             {
@@ -92,7 +92,7 @@ public class WeaponHelpersTests : BaseTestFixture
     {
         var config = new ConfigData
         {
-            EnableEnemyStuffPreference = true,
+            EnableEnemyStuff = 1,
             ChanceForEnemyStuff = 100,
             AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
             {
@@ -137,7 +137,7 @@ public class WeaponHelpersTests : BaseTestFixture
     {
         var config = new ConfigData
         {
-            EnableEnemyStuffPreference = true,
+            EnableEnemyStuff = 1,
             ChanceForEnemyStuff = 100,
             AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
             {
@@ -188,7 +188,7 @@ public class WeaponHelpersTests : BaseTestFixture
     {
         var config = new ConfigData
         {
-            EnableEnemyStuffPreference = true,
+            EnableEnemyStuff = 1,
             ChanceForEnemyStuff = 100,
             AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
             {
