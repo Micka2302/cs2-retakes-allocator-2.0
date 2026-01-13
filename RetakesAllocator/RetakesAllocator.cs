@@ -925,7 +925,14 @@ public class RetakesAllocator : BasePlugin
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (@event == null) return HookResult.Continue;
         _bombsiteAnnounceOneTime = false;
-        _customWarmupActive = false;
+
+        var warmupActive = Helpers.IsWarmup() && Configs.GetConfigData().CustomWarmup;
+        _customWarmupActive = warmupActive;
+
+        if (warmupActive)
+        {
+            ScheduleCustomWarmupGiveAll();
+        }
         return HookResult.Continue;
     }
 
@@ -1078,7 +1085,13 @@ public class RetakesAllocator : BasePlugin
     public HookResult OnEventPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-        if (@event == null || !_customWarmupActive || !Helpers.IsWarmup())
+        if (@event == null)
+        {
+            return HookResult.Continue;
+        }
+
+        _customWarmupActive = Helpers.IsWarmup() && Configs.GetConfigData().CustomWarmup;
+        if (!_customWarmupActive)
         {
             return HookResult.Continue;
         }
@@ -1099,16 +1112,16 @@ public class RetakesAllocator : BasePlugin
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (@event == null) return HookResult.Continue;
 
-        _customWarmupActive = Configs.GetConfigData().CustomWarmup;
-
         if (Configs.GetConfigData().ResetStateOnGameRestart)
         {
             ResetState();
         }
 
-        ScheduleCustomWarmupGiveAll();
+        _customWarmupActive = Helpers.IsWarmup() && Configs.GetConfigData().CustomWarmup;
+
         if (_customWarmupActive)
         {
+            ScheduleCustomWarmupGiveAll();
             Server.PrintToChatAll($"{MessagePrefix}Custom warmup enabled.");
         }
 
