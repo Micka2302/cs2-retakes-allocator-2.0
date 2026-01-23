@@ -10,10 +10,14 @@ $buildOutput = Join-Path $root 'RetakesAllocator/bin/Release/net8.0'
 $compiledRoot = Join-Path $root 'compiled'
 $pluginName = 'RetakesAllocator'
 $pluginTarget = Join-Path $compiledRoot "counterstrikesharp/plugins/$pluginName"
+$sharedTarget = Join-Path $compiledRoot "counterstrikesharp/shared/KitsuneMenu"
+$kitsuneSharedSource = Join-Path $root 'RetakesAllocator/game/csgo/addons/counterstrikesharp/shared/KitsuneMenu/KitsuneMenu.dll'
+$kitsuneLocalBuild = Join-Path $root 'RetakesAllocator/KitsuneMenu/src/bin/Release/net8.0/KitsuneMenu.dll'
 
 # Clean staging directory
 Remove-Item -Recurse -Force $compiledRoot -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $pluginTarget -Force | Out-Null
+New-Item -ItemType Directory -Path $sharedTarget -Force | Out-Null
 
 dotnet restore $solution
 dotnet build $solution -c Release --no-restore --nologo
@@ -50,3 +54,23 @@ Compress-Archive -Path (Join-Path $pluginTarget '*') -DestinationPath $zipPath
 Write-Host "[OK] Build finished."
 Write-Host " - Folder: $pluginTarget"
 Write-Host " - Zip:    $zipPath"
+
+# Copy KitsuneMenu shared DLL if available
+$kitsuneSource = $null
+if (Test-Path $kitsuneSharedSource) {
+    $kitsuneSource = $kitsuneSharedSource
+} elseif (Test-Path $kitsuneLocalBuild) {
+    $kitsuneSource = $kitsuneLocalBuild
+}
+
+if ($kitsuneSource) {
+    try {
+        Copy-Item -Force $kitsuneSource $sharedTarget
+        Write-Host " - KitsuneMenu copied to: $sharedTarget"
+    }
+    catch {
+        Write-Warning "Failed to copy KitsuneMenu.dll: $($_.Exception.Message)"
+    }
+} else {
+    Write-Warning "KitsuneMenu.dll not found (checked shared and local build paths)."
+}
