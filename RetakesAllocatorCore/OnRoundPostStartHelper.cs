@@ -187,7 +187,7 @@ public class OnRoundPostStartHelper
                 RoundTypeManager.Instance.Map,
                 roundType,
                 CsTeam.CounterTerrorist,
-                tPlayers.Count
+                ctPlayers.Count
             ),
             ctPlayers,
             nadesByPlayer
