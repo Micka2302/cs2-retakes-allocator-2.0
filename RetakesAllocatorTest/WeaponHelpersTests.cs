@@ -222,4 +222,144 @@ public class WeaponHelpersTests : BaseTestFixture
         Assert.That(selection.EnemyStuffGranted, Is.False);
         Assert.That(weapons.Last(), Is.EqualTo(CsItem.M4A1S));
     }
+
+    [Test]
+    public void EnemyStuffDoesNotSwapSecondaryOnFullBuy()
+    {
+        var config = new ConfigData
+        {
+            EnableEnemyStuff = 1,
+            ChanceForEnemyStuff = 100,
+            AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
+            {
+                WeaponSelectionType.PlayerChoice
+            },
+        };
+
+        Configs.OverrideConfigDataForTests(config);
+
+        var userSetting = new UserSetting
+        {
+            EnemyStuffTeamPreference = EnemyStuffTeamPreference.CounterTerrorist,
+        };
+        userSetting.SetWeaponPreference(
+            CsTeam.CounterTerrorist,
+            WeaponAllocationType.FullBuyPrimary,
+            CsItem.M249
+        );
+        userSetting.SetWeaponPreference(
+            CsTeam.Terrorist,
+            WeaponAllocationType.FullBuyPrimary,
+            CsItem.M249
+        );
+        userSetting.SetWeaponPreference(
+            CsTeam.CounterTerrorist,
+            WeaponAllocationType.Secondary,
+            CsItem.P2000
+        );
+        userSetting.SetWeaponPreference(
+            CsTeam.Terrorist,
+            WeaponAllocationType.Secondary,
+            CsItem.Glock
+        );
+
+        var selection = WeaponHelpers.GetWeaponsForRoundType(
+            RoundType.FullBuy,
+            CsTeam.CounterTerrorist,
+            userSetting,
+            givePreferred: false
+        );
+
+        var weapons = selection.Weapons.ToList();
+
+        Assert.That(weapons, Has.Count.EqualTo(2));
+        Assert.That(weapons[0], Is.EqualTo(CsItem.P2000));
+        Assert.That(weapons[1], Is.EqualTo(CsItem.M249));
+    }
+
+    [Test]
+    public void EnemyStuffHalfBuySwapsSmgOnly()
+    {
+        var config = new ConfigData
+        {
+            EnableEnemyStuff = 1,
+            ChanceForEnemyStuff = 100,
+            AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
+            {
+                WeaponSelectionType.PlayerChoice
+            },
+        };
+
+        Configs.OverrideConfigDataForTests(config);
+
+        var userSetting = new UserSetting
+        {
+            EnemyStuffTeamPreference = EnemyStuffTeamPreference.CounterTerrorist,
+        };
+        userSetting.SetWeaponPreference(
+            CsTeam.CounterTerrorist,
+            WeaponAllocationType.HalfBuyPrimary,
+            CsItem.MP9
+        );
+        userSetting.SetWeaponPreference(
+            CsTeam.Terrorist,
+            WeaponAllocationType.HalfBuyPrimary,
+            CsItem.Mac10
+        );
+
+        var selection = WeaponHelpers.GetWeaponsForRoundType(
+            RoundType.HalfBuy,
+            CsTeam.CounterTerrorist,
+            userSetting,
+            givePreferred: false
+        );
+
+        var weapons = selection.Weapons.ToList();
+
+        Assert.That(weapons.Last(), Is.EqualTo(CsItem.Mac10));
+        Assert.That(selection.EnemyStuffGranted, Is.True);
+    }
+
+    [Test]
+    public void EnemyStuffHalfBuyDoesNotSwapShotgun()
+    {
+        var config = new ConfigData
+        {
+            EnableEnemyStuff = 1,
+            ChanceForEnemyStuff = 100,
+            AllowedWeaponSelectionTypes = new List<WeaponSelectionType>
+            {
+                WeaponSelectionType.PlayerChoice
+            },
+        };
+
+        Configs.OverrideConfigDataForTests(config);
+
+        var userSetting = new UserSetting
+        {
+            EnemyStuffTeamPreference = EnemyStuffTeamPreference.CounterTerrorist,
+        };
+        userSetting.SetWeaponPreference(
+            CsTeam.CounterTerrorist,
+            WeaponAllocationType.HalfBuyPrimary,
+            CsItem.MAG7
+        );
+        userSetting.SetWeaponPreference(
+            CsTeam.Terrorist,
+            WeaponAllocationType.HalfBuyPrimary,
+            CsItem.SawedOff
+        );
+
+        var selection = WeaponHelpers.GetWeaponsForRoundType(
+            RoundType.HalfBuy,
+            CsTeam.CounterTerrorist,
+            userSetting,
+            givePreferred: false
+        );
+
+        var weapons = selection.Weapons.ToList();
+
+        Assert.That(weapons.Last(), Is.EqualTo(CsItem.MAG7));
+        Assert.That(selection.EnemyStuffGranted, Is.False);
+    }
 }

@@ -205,6 +205,9 @@ public static class WeaponHelpers
     private static readonly ICollection<CsItem> _allHalfBuy =
         _midRangeForT.Concat(_midRangeForCt).ToHashSet();
 
+    private static readonly ICollection<CsItem> _allSmgs =
+        _smgsForT.Concat(_smgsForCt).ToHashSet();
+
     private static readonly ICollection<CsItem> _allPistols =
         _pistolsForT.Concat(_pistolsForCt).ToHashSet();
 
@@ -453,9 +456,52 @@ public static class WeaponHelpers
         return _awpAndAutoPreferred.Contains(weapon) || IsRandomSniperPreference(weapon);
     }
 
+    public static bool IsAwpOrAutoSniperWeapon(CsItem weapon)
+    {
+        return _awpAndAutoPreferred.Contains(weapon);
+    }
+
     public static bool IsSsgPreference(CsItem weapon)
     {
         return _ssgPreferredWeapons.Contains(weapon) || IsRandomSniperPreference(weapon);
+    }
+
+    public static bool IsSsgWeapon(CsItem weapon)
+    {
+        return _ssgPreferredWeapons.Contains(weapon);
+    }
+
+    public static CsItem? GetNonSniperPrimaryFallback(RoundType roundType, CsTeam team)
+    {
+        var allocationType = roundType switch
+        {
+            RoundType.HalfBuy => WeaponAllocationType.HalfBuyPrimary,
+            RoundType.FullBuy => WeaponAllocationType.FullBuyPrimary,
+            _ => (WeaponAllocationType?)null,
+        };
+
+        if (allocationType is null)
+        {
+            return null;
+        }
+
+        var defaultWeapon = _defaultWeaponsByTeamAndAllocationType.TryGetValue(team, out var teamDefaults) &&
+                            teamDefaults.TryGetValue(allocationType.Value, out var configuredDefault)
+            ? configuredDefault
+            : (CsItem?)null;
+        if (defaultWeapon is not null &&
+            IsUsableWeapon(defaultWeapon.Value) &&
+            !IsAwpOrAutoSniperWeapon(defaultWeapon.Value) &&
+            !IsSsgWeapon(defaultWeapon.Value))
+        {
+            return defaultWeapon;
+        }
+
+        return GetAvailableWeaponsForTeamAndAllocationType(allocationType.Value, team)
+            .Where(IsUsableWeapon)
+            .Where(item => !IsAwpOrAutoSniperWeapon(item) && !IsSsgWeapon(item))
+            .Select(item => (CsItem?)item)
+            .FirstOrDefault();
     }
 
     private static ICollection<CsItem> GetShotgunsForTeam(CsTeam team)
@@ -907,6 +953,19 @@ public static class WeaponHelpers
         return Configs.GetConfigData().AllowAllocationAfterFreezeTime || isFreezePeriod;
     }
 
+    private static bool IsEnemyStuffAllowedForAllocationType(WeaponAllocationType allocationType, CsItem weapon)
+    {
+        return allocationType switch
+        {
+            WeaponAllocationType.PistolRound => true,
+            WeaponAllocationType.Secondary => false,
+            WeaponAllocationType.HalfBuyPrimary => _allSmgs.Contains(weapon),
+            WeaponAllocationType.FullBuyPrimary => true,
+            WeaponAllocationType.Preferred => true,
+            _ => false,
+        };
+    }
+
     private static CsItem? MaybeSwapForEnemyStuff(
         WeaponAllocationType allocationType,
         CsTeam team,
@@ -918,6 +977,11 @@ public static class WeaponHelpers
     {
         var config = Configs.GetConfigData();
         if (config.GetEnemyStuffMode() == AccessMode.Disabled || config.ChanceForEnemyStuff <= 0)
+        {
+            return weapon;
+        }
+
+        if (!IsEnemyStuffAllowedForAllocationType(allocationType, weapon))
         {
             return weapon;
         }

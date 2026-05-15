@@ -158,6 +158,7 @@ public class ConfigTests : BaseTestFixture
                 }
             },
             EnableAwp = 1,
+            EnableAwpRoundType = 3,
             AwpPermission = "@css/custom-awp",
             ChanceForAwpWeapon = 55,
             MaxAwpWeaponsPerTeam = new Dictionary<CsTeam, int>
@@ -171,6 +172,7 @@ public class ConfigTests : BaseTestFixture
                 [CsTeam.CounterTerrorist] = 3,
             },
             EnableSsg = 1,
+            EnableSsgRoundType = 1,
             SsgPermission = "@css/custom-ssg",
             ChanceForSsgWeapon = 65,
             MaxSsgWeaponsPerTeam = new Dictionary<CsTeam, int>
@@ -224,11 +226,13 @@ public class ConfigTests : BaseTestFixture
             Assert.That(roundTrip.MaxNades[NadeHelpers.GlobalSettingName][CsTeam.Terrorist][CsItem.Smoke], Is.EqualTo(2));
             Assert.That(roundTrip.MaxTeamNades[NadeHelpers.GlobalSettingName][CsTeam.Terrorist][RoundType.Pistol], Is.EqualTo(MaxTeamNadesSetting.Two));
             Assert.That(roundTrip.EnableAwp, Is.EqualTo(1));
+            Assert.That(roundTrip.EnableAwpRoundType, Is.EqualTo(3));
             Assert.That(roundTrip.AwpPermission, Is.EqualTo("@css/custom-awp"));
             Assert.That(roundTrip.ChanceForAwpWeapon, Is.EqualTo(55));
             Assert.That(roundTrip.MaxAwpWeaponsPerTeam[CsTeam.CounterTerrorist], Is.EqualTo(2));
             Assert.That(roundTrip.MinPlayersPerTeamForAwpWeapon[CsTeam.CounterTerrorist], Is.EqualTo(3));
             Assert.That(roundTrip.EnableSsg, Is.EqualTo(1));
+            Assert.That(roundTrip.EnableSsgRoundType, Is.EqualTo(1));
             Assert.That(roundTrip.SsgPermission, Is.EqualTo("@css/custom-ssg"));
             Assert.That(roundTrip.MaxSsgWeaponsPerTeam[CsTeam.Terrorist], Is.EqualTo(3));
             Assert.That(roundTrip.EnableEnemyStuff, Is.EqualTo(1));
@@ -256,5 +260,27 @@ public class ConfigTests : BaseTestFixture
         Assert.That(document.RootElement.TryGetProperty("Config", out _), Is.True);
         Assert.That(document.RootElement.TryGetProperty("AWP", out _), Is.True);
         Assert.That(document.RootElement.TryGetProperty("Weapons", out _), Is.True);
+    }
+
+    [Test]
+    [TestCase(0)]
+    [TestCase(4)]
+    public void SniperRoundTypeValidationRejectsInvalidValues(int enableRoundType)
+    {
+        Assert.That(
+            () => Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                EnableAwpRoundType = enableRoundType,
+            }),
+            Throws.Exception.With.Message.EqualTo("'AWP.EnableRoundType' must be 1 (HalfBuy), 2 (FullBuy), or 3 (both)")
+        );
+
+        Assert.That(
+            () => Configs.OverrideConfigDataForTests(new ConfigData
+            {
+                EnableSsgRoundType = enableRoundType,
+            }),
+            Throws.Exception.With.Message.EqualTo("'SSG.EnableRoundType' must be 1 (HalfBuy), 2 (FullBuy), or 3 (both)")
+        );
     }
 }

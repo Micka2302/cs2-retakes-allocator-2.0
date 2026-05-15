@@ -9,6 +9,156 @@ namespace RetakesAllocatorCore;
 
 public class OnRoundPostStartHelper
 {
+    private enum SniperLimitType
+    {
+        Awp,
+        Ssg,
+    }
+
+    private static Dictionary<CsTeam, Dictionary<SniperLimitType, int>> CreateSniperCountMap()
+    {
+        return new Dictionary<CsTeam, Dictionary<SniperLimitType, int>>
+        {
+            {
+                CsTeam.Terrorist, new Dictionary<SniperLimitType, int>
+                {
+                    {SniperLimitType.Awp, 0},
+                    {SniperLimitType.Ssg, 0},
+                }
+            },
+            {
+                CsTeam.CounterTerrorist, new Dictionary<SniperLimitType, int>
+                {
+                    {SniperLimitType.Awp, 0},
+                    {SniperLimitType.Ssg, 0},
+                }
+            },
+        };
+    }
+
+    private static SniperLimitType? GetSniperLimitType(CsItem weapon)
+    {
+        if (WeaponHelpers.IsAwpOrAutoSniperWeapon(weapon))
+        {
+            return SniperLimitType.Awp;
+        }
+
+        if (WeaponHelpers.IsSsgWeapon(weapon))
+        {
+            return SniperLimitType.Ssg;
+        }
+
+        return null;
+    }
+
+    private static int GetMaxSnipersForTeam(ConfigData config, CsTeam team, SniperLimitType sniperLimitType)
+    {
+        var limits = sniperLimitType == SniperLimitType.Awp
+            ? config.MaxAwpWeaponsPerTeam
+            : config.MaxSsgWeaponsPerTeam;
+
+        return limits.TryGetValue(team, out var limit) ? limit : 1;
+    }
+
+    private static bool IsSniperAllowedForRound(ConfigData config, SniperLimitType sniperLimitType, RoundType roundType)
+    {
+        return sniperLimitType == SniperLimitType.Awp
+            ? config.IsAwpAllowedForRoundType(roundType)
+            : config.IsSsgAllowedForRoundType(roundType);
+    }
+
+    private static Dictionary<CsTeam, Dictionary<SniperLimitType, int>> CountSniperReservations<T>(
+        IDictionary<T, CsItem> tPreferredWeapons,
+        IDictionary<T, CsItem> ctPreferredWeapons
+    ) where T : notnull
+    {
+        var reservations = CreateSniperCountMap();
+
+        void Count(CsTeam team, IEnumerable<CsItem> weapons)
+        {
+            foreach (var weapon in weapons)
+            {
+                var sniperType = GetSniperLimitType(weapon);
+                if (sniperType is not null)
+                {
+                    reservations[team][sniperType.Value]++;
+                }
+            }
+        }
+
+        Count(CsTeam.Terrorist, tPreferredWeapons.Values);
+        Count(CsTeam.CounterTerrorist, ctPreferredWeapons.Values);
+
+        return reservations;
+    }
+
+    private static ICollection<CsItem> ApplySniperTeamLimits(
+        ICollection<CsItem> weapons,
+        CsTeam team,
+        RoundType roundType,
+        CsItem? preferredOverride,
+        ConfigData config,
+        IDictionary<CsTeam, Dictionary<SniperLimitType, int>> grantedSnipersPerTeam,
+        IDictionary<CsTeam, Dictionary<SniperLimitType, int>> remainingPreferredReservations
+    )
+    {
+        if (team is not CsTeam.Terrorist and not CsTeam.CounterTerrorist)
+        {
+            return weapons;
+        }
+
+        var filteredWeapons = new List<CsItem>();
+        var currentPreferredType = preferredOverride.HasValue
+            ? GetSniperLimitType(preferredOverride.Value)
+            : null;
+        var consumedCurrentPreferredReservation = false;
+
+        foreach (var weapon in weapons)
+        {
+            var sniperType = GetSniperLimitType(weapon);
+            if (sniperType is null)
+            {
+                filteredWeapons.Add(weapon);
+                continue;
+            }
+
+            var isCurrentPreferred =
+                !consumedCurrentPreferredReservation &&
+                currentPreferredType == sniperType &&
+                preferredOverride == weapon;
+            var sniperAllowedForRound = IsSniperAllowedForRound(config, sniperType.Value, roundType);
+            var reservedAfterThisPlayer = Math.Max(
+                0,
+                remainingPreferredReservations[team][sniperType.Value] - (isCurrentPreferred ? 1 : 0)
+            );
+            var maxForTeam = GetMaxSnipersForTeam(config, team, sniperType.Value);
+            var allowedBeforeFutureReservations = maxForTeam - reservedAfterThisPlayer;
+            var grantedForTeam = grantedSnipersPerTeam[team][sniperType.Value];
+
+            if (sniperAllowedForRound && maxForTeam > 0 && grantedForTeam < allowedBeforeFutureReservations)
+            {
+                filteredWeapons.Add(weapon);
+                grantedSnipersPerTeam[team][sniperType.Value] = grantedForTeam + 1;
+            }
+            else if (WeaponHelpers.GetNonSniperPrimaryFallback(roundType, team) is { } fallback)
+            {
+                filteredWeapons.Add(fallback);
+            }
+
+            if (isCurrentPreferred)
+            {
+                consumedCurrentPreferredReservation = true;
+            }
+        }
+
+        if (currentPreferredType is not null && remainingPreferredReservations[team][currentPreferredType.Value] > 0)
+        {
+            remainingPreferredReservations[team][currentPreferredType.Value]--;
+        }
+
+        return filteredWeapons;
+    }
+
     public static void Handle<T>(
         ICollection<T> allPlayers,
         Func<T?, ulong> getSteamId,
@@ -120,7 +270,7 @@ public class OnRoundPostStartHelper
             {CsTeam.CounterTerrorist, 0},
         };
 
-        if (roundType == RoundType.FullBuy)
+        if (config.IsAwpAllowedForRoundType(roundType))
         {
             if (random.NextDouble() * 100 <= config.ChanceForAwpWeapon)
             {
@@ -144,32 +294,36 @@ public class OnRoundPostStartHelper
                     () => CsItem.AWP
                 );
             }
-
-            if (random.NextDouble() * 100 <= config.ChanceForSsgWeapon)
-            {
-                var tSsgEligible = FilterPreferredPlayers(tPlayers, WeaponHelpers.IsSsgPreference)
-                    .Where(player => !tPreferredWeapons.ContainsKey(player));
-                var ctSsgEligible = FilterPreferredPlayers(ctPlayers, WeaponHelpers.IsSsgPreference)
-                    .Where(player => !ctPreferredWeapons.ContainsKey(player));
-
-                AssignPreferredWeapons(
-                    tPreferredWeapons,
-                    tSsgEligible,
-                    WeaponHelpers.SelectPreferredSsgPlayers,
-                    hasSsgPermission,
-                    CsTeam.Terrorist,
-                    () => CsItem.Scout
-                );
-                AssignPreferredWeapons(
-                    ctPreferredWeapons,
-                    ctSsgEligible,
-                    WeaponHelpers.SelectPreferredSsgPlayers,
-                    hasSsgPermission,
-                    CsTeam.CounterTerrorist,
-                    () => CsItem.Scout
-                );
-            }
         }
+
+        if (config.IsSsgAllowedForRoundType(roundType) &&
+            random.NextDouble() * 100 <= config.ChanceForSsgWeapon)
+        {
+            var tSsgEligible = FilterPreferredPlayers(tPlayers, WeaponHelpers.IsSsgPreference)
+                .Where(player => !tPreferredWeapons.ContainsKey(player));
+            var ctSsgEligible = FilterPreferredPlayers(ctPlayers, WeaponHelpers.IsSsgPreference)
+                .Where(player => !ctPreferredWeapons.ContainsKey(player));
+
+            AssignPreferredWeapons(
+                tPreferredWeapons,
+                tSsgEligible,
+                WeaponHelpers.SelectPreferredSsgPlayers,
+                hasSsgPermission,
+                CsTeam.Terrorist,
+                () => CsItem.Scout
+            );
+            AssignPreferredWeapons(
+                ctPreferredWeapons,
+                ctSsgEligible,
+                WeaponHelpers.SelectPreferredSsgPlayers,
+                hasSsgPermission,
+                CsTeam.CounterTerrorist,
+                () => CsItem.Scout
+            );
+        }
+
+        var grantedSnipersPerTeam = CreateSniperCountMap();
+        var remainingPreferredSniperReservations = CountSniperReservations(tPreferredWeapons, ctPreferredWeapons);
 
         var nadesByPlayer = new Dictionary<T, ICollection<CsItem>>();
         NadeHelpers.AllocateNadesToPlayers(
@@ -187,7 +341,7 @@ public class OnRoundPostStartHelper
                 RoundTypeManager.Instance.Map,
                 roundType,
                 CsTeam.CounterTerrorist,
-                tPlayers.Count
+                ctPlayers.Count
             ),
             ctPlayers,
             nadesByPlayer
@@ -232,7 +386,16 @@ public class OnRoundPostStartHelper
                 enemyStuffQuotaAvailable,
                 preferredOverride
             );
-            items.AddRange(weaponSelection.Weapons);
+            var weapons = ApplySniperTeamLimits(
+                weaponSelection.Weapons,
+                team,
+                roundType,
+                preferredOverride,
+                config,
+                grantedSnipersPerTeam,
+                remainingPreferredSniperReservations
+            );
+            items.AddRange(weapons);
 
             if (weaponSelection.EnemyStuffGranted && team is CsTeam.Terrorist or CsTeam.CounterTerrorist)
             {
