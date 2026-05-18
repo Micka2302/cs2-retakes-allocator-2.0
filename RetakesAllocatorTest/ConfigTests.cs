@@ -187,6 +187,7 @@ public class ConfigTests : BaseTestFixture
             },
             EnableEnemyStuff = 1,
             EnemyStuffPermission = "@css/custom",
+            EnemyStuffPermissions = new List<string> {"@css/custom", "@css/premium"},
             ChanceForEnemyStuff = 80,
             MaxEnemyStuffPerTeam = new Dictionary<CsTeam, int>
             {
@@ -237,6 +238,7 @@ public class ConfigTests : BaseTestFixture
             Assert.That(roundTrip.MaxSsgWeaponsPerTeam[CsTeam.Terrorist], Is.EqualTo(3));
             Assert.That(roundTrip.EnableEnemyStuff, Is.EqualTo(1));
             Assert.That(roundTrip.EnemyStuffPermission, Is.EqualTo("@css/custom"));
+            Assert.That(roundTrip.EnemyStuffPermissions, Is.EqualTo(config.EnemyStuffPermissions));
             Assert.That(roundTrip.ChanceForEnemyStuff, Is.EqualTo(80));
             Assert.That(roundTrip.MaxEnemyStuffPerTeam[CsTeam.CounterTerrorist], Is.EqualTo(3));
             Assert.That(roundTrip.EnableZeus, Is.EqualTo(1));
@@ -245,6 +247,46 @@ public class ConfigTests : BaseTestFixture
             Assert.That(roundTrip.DatabaseProvider, Is.EqualTo(DatabaseProvider.MySql));
             Assert.That(roundTrip.DatabaseConnectionString, Is.EqualTo("Server=test;"));
             Assert.That(roundTrip.MigrateOnStartup, Is.False);
+        });
+    }
+
+    [Test]
+    public void CategorizedConfigLayoutMapsLegacyEnemyStuffPermissionToPermissionsList()
+    {
+        var layout = new ConfigFileLayout
+        {
+            EnemyStuff = new EnemyStuffCategory
+            {
+                EnemyStuffPermission = "@css/legacy"
+            }
+        };
+
+        var config = layout.ToConfigData();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(config.EnemyStuffPermission, Is.EqualTo("@css/legacy"));
+            Assert.That(config.EnemyStuffPermissions, Is.EqualTo(new[] {"@css/legacy"}));
+        });
+    }
+
+    [Test]
+    public void CategorizedConfigLayoutUsesFirstEnemyStuffPermissionForLegacyProperty()
+    {
+        var layout = new ConfigFileLayout
+        {
+            EnemyStuff = new EnemyStuffCategory
+            {
+                EnemyStuffPermissions = new List<string> {"@css/vip", "@css/premium"}
+            }
+        };
+
+        var config = layout.ToConfigData();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(config.EnemyStuffPermission, Is.EqualTo("@css/vip"));
+            Assert.That(config.EnemyStuffPermissions, Is.EqualTo(new[] {"@css/vip", "@css/premium"}));
         });
     }
 

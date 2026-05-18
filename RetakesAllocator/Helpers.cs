@@ -219,6 +219,11 @@ public static class Helpers
                AdminManager.PlayerHasPermissions(player, "@css/root");
     }
 
+    public static bool PlayerHasAnyPermission(CCSPlayerController player, IEnumerable<string> permissions)
+    {
+        return permissions.Any(permission => PlayerHasPermission(player, permission));
+    }
+
     public static bool HasEnemyStuffPermission(CCSPlayerController player)
     {
         var config = Configs.GetConfigData();
@@ -226,7 +231,7 @@ public static class Helpers
         {
             AccessMode.Disabled => false,
             AccessMode.Everyone => true,
-            AccessMode.VipOnly => PlayerHasPermission(player, config.EnemyStuffPermission),
+            AccessMode.VipOnly => PlayerHasAnyPermission(player, config.GetEnemyStuffPermissions()),
             _ => false,
         };
     }
