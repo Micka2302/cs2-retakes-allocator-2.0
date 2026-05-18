@@ -225,6 +225,13 @@ public enum AccessMode
     VipOnly = 2,
 }
 
+public enum SniperRoundTypeMode
+{
+    HalfBuy = 1,
+    FullBuy = 2,
+    Both = 3,
+}
+
 public record RoundTypeManualOrderingItem(RoundType Type, int Count);
 
 public record ConfigData
@@ -356,6 +363,8 @@ public record ConfigData
     public string AwpPermission { get; set; } = "@css/vip";
     public int EnableSsg { get; set; } = 2;
     public string SsgPermission { get; set; } = "@css/vip";
+    public int EnableAwpRoundType { get; set; } = (int)SniperRoundTypeMode.FullBuy;
+    public int EnableSsgRoundType { get; set; } = (int)SniperRoundTypeMode.FullBuy;
 
     public double ChanceForAwpWeapon { get; set; } = 100;
 
@@ -413,6 +422,9 @@ public record ConfigData
     public int GetMaxEnemyStuffForTeam(CsTeam team) =>
         MaxEnemyStuffPerTeam.TryGetValue(team, out var max) ? max : -1;
 
+    public bool IsAwpAllowedForRoundType(RoundType roundType) => IsSniperAllowedForRoundType(EnableAwpRoundType, roundType);
+    public bool IsSsgAllowedForRoundType(RoundType roundType) => IsSniperAllowedForRoundType(EnableSsgRoundType, roundType);
+
     private static AccessMode ToAccessMode(int value)
     {
         return value switch
@@ -420,6 +432,17 @@ public record ConfigData
             <= 0 => AccessMode.Disabled,
             1 => AccessMode.Everyone,
             _ => AccessMode.VipOnly,
+        };
+    }
+
+    private static bool IsSniperAllowedForRoundType(int value, RoundType roundType)
+    {
+        return value switch
+        {
+            (int)SniperRoundTypeMode.HalfBuy => roundType == RoundType.HalfBuy,
+            (int)SniperRoundTypeMode.FullBuy => roundType == RoundType.FullBuy,
+            (int)SniperRoundTypeMode.Both => roundType is RoundType.HalfBuy or RoundType.FullBuy,
+            _ => false,
         };
     }
 
@@ -448,6 +471,16 @@ public record ConfigData
         if (EnableSsg is < 0 or > 2)
         {
             throw new Exception("'EnableSsg' must be 0 (disabled), 1 (everyone), or 2 (vip)");
+        }
+
+        if (EnableAwpRoundType is < 1 or > 3)
+        {
+            throw new Exception("'AWP.EnableRoundType' must be 1 (HalfBuy), 2 (FullBuy), or 3 (both)");
+        }
+
+        if (EnableSsgRoundType is < 1 or > 3)
+        {
+            throw new Exception("'SSG.EnableRoundType' must be 1 (HalfBuy), 2 (FullBuy), or 3 (both)");
         }
 
         if (EnableEnemyStuff is < 0 or > 2)
@@ -609,6 +642,7 @@ public record ConfigFileLayout
         AWP = new AwpCategory
         {
             EnableAwp = data.EnableAwp,
+            EnableRoundType = data.EnableAwpRoundType,
             AwpPermission = data.AwpPermission,
             ChanceForAwpWeapon = data.ChanceForAwpWeapon,
             MaxAwpWeaponsPerTeam = data.MaxAwpWeaponsPerTeam,
@@ -617,6 +651,7 @@ public record ConfigFileLayout
         SSG = new SsgCategory
         {
             EnableSsg = data.EnableSsg,
+            EnableRoundType = data.EnableSsgRoundType,
             SsgPermission = data.SsgPermission,
             ChanceForSsgWeapon = data.ChanceForSsgWeapon,
             MaxSsgWeaponsPerTeam = data.MaxSsgWeaponsPerTeam,
@@ -814,6 +849,10 @@ public record ConfigFileLayout
             {
                 data.AwpPermission = AWP.AwpPermission;
             }
+            if (AWP.EnableRoundType is int enableRoundType)
+            {
+                data.EnableAwpRoundType = enableRoundType;
+            }
             if (AWP.ChanceForAwpWeapon is double awpChance)
             {
                 data.ChanceForAwpWeapon = awpChance;
@@ -846,6 +885,10 @@ public record ConfigFileLayout
             if (SSG.SsgPermission is not null)
             {
                 data.SsgPermission = SSG.SsgPermission;
+            }
+            if (SSG.EnableRoundType is int enableRoundType)
+            {
+                data.EnableSsgRoundType = enableRoundType;
             }
             if (SSG.ChanceForSsgWeapon is double ssgChance)
             {
@@ -1010,6 +1053,7 @@ public record NadesCategory
 public record AwpCategory
 {
     public int? EnableAwp { get; set; }
+    public int? EnableRoundType { get; set; }
     public string? AwpPermission { get; set; }
     public double? ChanceForAwpWeapon { get; set; }
     public Dictionary<CsTeam, int>? MaxAwpWeaponsPerTeam { get; set; }
@@ -1025,6 +1069,7 @@ public record AwpCategory
 public record SsgCategory
 {
     public int? EnableSsg { get; set; }
+    public int? EnableRoundType { get; set; }
     public string? SsgPermission { get; set; }
     public double? ChanceForSsgWeapon { get; set; }
     public Dictionary<CsTeam, int>? MaxSsgWeaponsPerTeam { get; set; }

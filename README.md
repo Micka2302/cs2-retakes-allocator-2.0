@@ -44,7 +44,7 @@ Round order can be `Random` (weighted), `RandomFixedCounts`, or `ManualOrdering`
   - `!reload_allocator_config`, `!print_config <section>`
 
 ### Sniper system (AWP / SSG)
-- Runs only on **FullBuy** rounds.
+- Round availability is configurable per queue with `EnableRoundType`: `1` = HalfBuy, `2` = FullBuy, `3` = both.
 - Two queues:
   - **AWP/Auto-sniper queue**: AWP, G3SG1/SCAR-20, or Random preferences.
   - **SSG queue**: SSG or Random preferences (players already given an AWP/auto are skipped).
@@ -72,7 +72,7 @@ Config lives in `addons/counterstrikesharp/configs/plugins/RetakesAllocator/conf
 - **Config**: `ResetStateOnGameRestart`, `AllowAllocationAfterFreezeTime`, `UseOnTickFeatures`, round/bombsite announcements (`EnableRoundTypeAnnouncement`, center HUD options), menu triggers (`InGameGunMenuCenterCommands`), command toggle (`GunCommandsEnabled`), log level, chat prefix/name, signature controls (`EnableCanAcquireHook`, `AutoUpdateSignatures`, `CapabilityWeaponPaints`), migrations.
 - **RoundTypes**: `RoundTypeSelection`, `RoundTypePercentages`, `RoundTypeRandomFixedCounts`, `RoundTypeManualOrdering`.
 - **Weapons**: `UsableWeapons`, `AllowedWeaponSelectionTypes`, `DefaultWeapons`, `EnableAllWeaponsForEveryone`, `EnableWeaponShotguns`, `EnableWeaponPms`.
-- **AWP / SSG**: access mode, permissions, chances, per-team minimums and caps.
+- **AWP / SSG**: access mode, round availability, permissions, chances, per-team minimums and caps.
 - **EnemyStuff**: access mode, permission, chance, per-team limits.
 - **Zeus**: enable flag, chance, per-team caps.
 - **Nades**: `MaxNades`, `MaxTeamNades`.
@@ -361,6 +361,7 @@ Full configuration example (current Absynthium server):
   },
   "AWP": {
     "EnableAwp": 2,
+    "EnableRoundType": 2,
     "AwpPermission": "@css/vip",
     "ChanceForAwpWeapon": 50,
     "MaxAwpWeaponsPerTeam": {
@@ -374,6 +375,7 @@ Full configuration example (current Absynthium server):
   },
   "SSG": {
     "EnableSsg": 2,
+    "EnableRoundType": 2,
     "SsgPermission": "@css/vip",
     "ChanceForSsgWeapon": 50,
     "MaxSsgWeaponsPerTeam": {

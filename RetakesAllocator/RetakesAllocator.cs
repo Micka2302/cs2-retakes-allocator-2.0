@@ -785,7 +785,7 @@ public class RetakesAllocator : BasePlugin
         menu.GatherAndHandleVotes();
 
         var allPlayers = Utilities.GetPlayers()
-            .Where(player => Helpers.PlayerIsValid(player) && player.Connected == PlayerConnectedState.PlayerConnected)
+            .Where(player => Helpers.PlayerIsValid(player) && player.Connected == PlayerConnectedState.Connected)
             .ToList();
 
         OnRoundPostStartHelper.Handle(

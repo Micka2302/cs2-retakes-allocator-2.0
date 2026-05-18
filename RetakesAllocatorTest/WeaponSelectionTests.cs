@@ -276,6 +276,65 @@ public class WeaponSelectionTests : BaseTestFixture
     }
 
     [Test]
+    public async Task AwpRoundTypeSettingAllowsHalfBuyOnly()
+    {
+        var config = new ConfigData
+        {
+            EnableAwp = 1,
+            EnableAwpRoundType = (int)SniperRoundTypeMode.HalfBuy,
+            ChanceForAwpWeapon = 100,
+            ChanceForSsgWeapon = 0,
+        };
+
+        var (halfBuyAllocations, halfBuyRoundType) = await RunSniperRoundAsync(config, RoundType.HalfBuy, CsItem.AWP);
+        Assert.That(halfBuyRoundType, Is.EqualTo(RoundType.HalfBuy));
+        Assert.That(halfBuyAllocations[1], Does.Contain(CsItem.AWP));
+        Assert.That(halfBuyAllocations[2], Does.Contain(CsItem.AWP));
+
+        var (fullBuyAllocations, fullBuyRoundType) = await RunSniperRoundAsync(config, RoundType.FullBuy, CsItem.AWP);
+        Assert.That(fullBuyRoundType, Is.EqualTo(RoundType.FullBuy));
+        Assert.That(fullBuyAllocations[1], Does.Not.Contain(CsItem.AWP));
+        Assert.That(fullBuyAllocations[2], Does.Not.Contain(CsItem.AWP));
+    }
+
+    [Test]
+    public async Task SsgRoundTypeSettingAllowsBothHalfBuyAndFullBuy()
+    {
+        var config = new ConfigData
+        {
+            EnableSsg = 1,
+            EnableSsgRoundType = (int)SniperRoundTypeMode.Both,
+            ChanceForAwpWeapon = 0,
+            ChanceForSsgWeapon = 100,
+        };
+
+        var (halfBuyAllocations, halfBuyRoundType) = await RunSniperRoundAsync(config, RoundType.HalfBuy, CsItem.Scout);
+        Assert.That(halfBuyRoundType, Is.EqualTo(RoundType.HalfBuy));
+        Assert.That(halfBuyAllocations[1], Does.Contain(CsItem.Scout));
+        Assert.That(halfBuyAllocations[2], Does.Contain(CsItem.Scout));
+
+        var (fullBuyAllocations, fullBuyRoundType) = await RunSniperRoundAsync(config, RoundType.FullBuy, CsItem.Scout);
+        Assert.That(fullBuyRoundType, Is.EqualTo(RoundType.FullBuy));
+        Assert.That(fullBuyAllocations[1], Does.Contain(CsItem.Scout));
+        Assert.That(fullBuyAllocations[2], Does.Contain(CsItem.Scout));
+    }
+
+    [Test]
+    public async Task DefaultSniperRoundTypeDoesNotAllowHalfBuy()
+    {
+        var (allocations, roundType) = await RunSniperRoundAsync(new ConfigData
+        {
+            EnableAwp = 1,
+            ChanceForAwpWeapon = 100,
+            ChanceForSsgWeapon = 0,
+        }, RoundType.HalfBuy, CsItem.AWP);
+
+        Assert.That(roundType, Is.EqualTo(RoundType.HalfBuy));
+        Assert.That(allocations[1], Does.Not.Contain(CsItem.AWP));
+        Assert.That(allocations[2], Does.Not.Contain(CsItem.AWP));
+    }
+
+    [Test]
     public async Task AwpRespectsLimitWhenEveryoneCanQueue()
     {
         var config = new ConfigData
@@ -497,19 +556,101 @@ public class WeaponSelectionTests : BaseTestFixture
         }
     }
 
+    [Test]
+    public void DefaultSnipersRespectPerTeamLimits()
+    {
+        var defaultWeapons = WeaponHelpers.DefaultWeaponsByTeamAndAllocationType
+            .ToDictionary(
+                team => team.Key,
+                team => team.Value.ToDictionary(allocation => allocation.Key, allocation => allocation.Value)
+            );
+        defaultWeapons[CsTeam.Terrorist][WeaponAllocationType.FullBuyPrimary] = CsItem.AWP;
+        defaultWeapons[CsTeam.CounterTerrorist][WeaponAllocationType.FullBuyPrimary] = CsItem.Scout;
+
+        var config = new ConfigData
+        {
+            AllowedWeaponSelectionTypes = new List<WeaponSelectionType> {WeaponSelectionType.Default},
+            DefaultWeapons = defaultWeapons,
+            ChanceForAwpWeapon = 0,
+            ChanceForSsgWeapon = 0,
+            MaxAwpWeaponsPerTeam = new()
+            {
+                {CsTeam.Terrorist, 1},
+                {CsTeam.CounterTerrorist, 1},
+            },
+            MaxSsgWeaponsPerTeam = new()
+            {
+                {CsTeam.Terrorist, 1},
+                {CsTeam.CounterTerrorist, 1},
+            },
+        };
+
+        Configs.OverrideConfigDataForTests(config);
+        RoundTypeManager.Instance.Initialize();
+        RoundTypeManager.Instance.SetNextRoundTypeOverride(RoundType.FullBuy);
+
+        var players = new List<int> {1, 2, 3, 4};
+
+        try
+        {
+            var allocations = new Dictionary<int, List<CsItem>>();
+            OnRoundPostStartHelper.Handle(
+                players,
+                p => (ulong)p,
+                p => p <= 2 ? CsTeam.Terrorist : CsTeam.CounterTerrorist,
+                _ => { },
+                (player, items, _) => { allocations[player] = new(items); },
+                _ => true,
+                _ => true,
+                _ => false,
+                out var roundType
+            );
+
+            Assert.That(roundType, Is.EqualTo(RoundType.FullBuy));
+
+            var tWeapons = allocations
+                .Where(kvp => kvp.Key <= 2)
+                .SelectMany(kvp => kvp.Value)
+                .ToList();
+            var ctWeapons = allocations
+                .Where(kvp => kvp.Key > 2)
+                .SelectMany(kvp => kvp.Value)
+                .ToList();
+
+            Assert.That(tWeapons.Count(item => item is CsItem.AWP or CsItem.AutoSniperT or CsItem.AutoSniperCT),
+                Is.LessThanOrEqualTo(1));
+            Assert.That(ctWeapons.Count(item => item == CsItem.Scout), Is.LessThanOrEqualTo(1));
+            Assert.That(tWeapons, Does.Contain(CsItem.AK47));
+            Assert.That(ctWeapons, Does.Contain(CsItem.M4A1S));
+        }
+        finally
+        {
+            RoundTypeManager.Instance.SetNextRoundTypeOverride(null);
+        }
+    }
+
     private async Task<(Dictionary<int, List<CsItem>> allocations, RoundType roundType)> RunSsgRoundAsync(
         ConfigData configData
     )
     {
+        return await RunSniperRoundAsync(configData, RoundType.FullBuy, CsItem.Scout);
+    }
+
+    private async Task<(Dictionary<int, List<CsItem>> allocations, RoundType roundType)> RunSniperRoundAsync(
+        ConfigData configData,
+        RoundType roundTypeOverride,
+        CsItem sniperPreference
+    )
+    {
         Configs.OverrideConfigDataForTests(configData);
         RoundTypeManager.Instance.Initialize();
-        RoundTypeManager.Instance.SetNextRoundTypeOverride(RoundType.FullBuy);
+        RoundTypeManager.Instance.SetNextRoundTypeOverride(roundTypeOverride);
 
         var players = new List<int> {1, 2};
         await Queries.SetWeaponPreferenceForUserAsync(1, CsTeam.Terrorist, WeaponAllocationType.Preferred,
-            CsItem.Scout);
+            sniperPreference);
         await Queries.SetWeaponPreferenceForUserAsync(2, CsTeam.CounterTerrorist, WeaponAllocationType.Preferred,
-            CsItem.Scout);
+            sniperPreference);
 
         var allocations = new Dictionary<int, List<CsItem>>();
         try
