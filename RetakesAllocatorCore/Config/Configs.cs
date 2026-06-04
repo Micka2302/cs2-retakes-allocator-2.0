@@ -359,6 +359,7 @@ public record ConfigData
     };
     public int EnableEnemyStuff { get; set; } = 2;
     public string EnemyStuffPermission { get; set; } = "@css/vip";
+    public List<string> EnemyStuffPermissions { get; set; } = new();
     public int EnableAwp { get; set; } = 2;
     public string AwpPermission { get; set; } = "@css/vip";
     public int EnableSsg { get; set; } = 2;
@@ -419,6 +420,10 @@ public record ConfigData
     public AccessMode GetAwpMode() => ToAccessMode(EnableAwp);
     public AccessMode GetSsgMode() => ToAccessMode(EnableSsg);
     public AccessMode GetEnemyStuffMode() => ToAccessMode(EnableEnemyStuff);
+    public IEnumerable<string> GetEnemyStuffPermissions() =>
+        EnemyStuffPermissions.Count > 0
+            ? EnemyStuffPermissions.Where(permission => !string.IsNullOrWhiteSpace(permission))
+            : [EnemyStuffPermission];
     public int GetMaxEnemyStuffForTeam(CsTeam team) =>
         MaxEnemyStuffPerTeam.TryGetValue(team, out var max) ? max : -1;
 
@@ -660,7 +665,7 @@ public record ConfigFileLayout
         EnemyStuff = new EnemyStuffCategory
         {
             EnableEnemyStuff = data.EnableEnemyStuff,
-            EnemyStuffPermission = data.EnemyStuffPermission,
+            EnemyStuffPermissions = data.GetEnemyStuffPermissions().ToList(),
             ChanceForEnemyStuff = data.ChanceForEnemyStuff,
             MaxEnemyStuffPerTeam = data.MaxEnemyStuffPerTeam,
         },
@@ -918,6 +923,15 @@ public record ConfigFileLayout
             {
                 data.EnemyStuffPermission = EnemyStuff.EnemyStuffPermission;
             }
+            if (EnemyStuff.EnemyStuffPermissions is not null)
+            {
+                data.EnemyStuffPermissions = EnemyStuff.EnemyStuffPermissions;
+                data.EnemyStuffPermission = data.EnemyStuffPermissions.FirstOrDefault() ?? data.EnemyStuffPermission;
+            }
+            else if (EnemyStuff.EnemyStuffPermission is not null)
+            {
+                data.EnemyStuffPermissions = new List<string> {EnemyStuff.EnemyStuffPermission};
+            }
             if (EnemyStuff.ChanceForEnemyStuff is double enemyChance)
             {
                 data.ChanceForEnemyStuff = enemyChance;
@@ -1085,7 +1099,9 @@ public record SsgCategory
 public record EnemyStuffCategory
 {
     public int? EnableEnemyStuff { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? EnemyStuffPermission { get; set; }
+    public List<string>? EnemyStuffPermissions { get; set; }
     public double? ChanceForEnemyStuff { get; set; }
     [JsonConverter(typeof(PerTeamLimitConverter))]
     public Dictionary<CsTeam, int>? MaxEnemyStuffPerTeam { get; set; }

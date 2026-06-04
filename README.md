@@ -55,7 +55,7 @@ Round order can be `Random` (weighted), `RandomFixedCounts`, or `ManualOrdering`
 
 ### Enemy weapons
 - Players opt in per team or both via the loadout menu.
-- Server controls: `EnableEnemyStuff` (0/1/2 with permission), `EnemyStuffPermission`, `ChanceForEnemyStuff`, `MaxEnemyStuffPerTeam` (-1 for unlimited). The loadout is swapped for an enemy-team equivalent when the roll succeeds and the team quota allows it.
+- Server controls: `EnableEnemyStuff` (0/1/2 with permission), `EnemyStuffPermissions` (or legacy `EnemyStuffPermission`), `ChanceForEnemyStuff`, `MaxEnemyStuffPerTeam` (-1 for unlimited). The loadout is swapped for an enemy-team equivalent when the roll succeeds and the team quota allows it.
 
 ### Zeus
 - `EnableZeus` (0 disables, >0 enables), `ChanceForZeusWeapon`, `MaxZeusPerTeam` per side.
@@ -73,7 +73,7 @@ Config lives in `addons/counterstrikesharp/configs/plugins/RetakesAllocator/conf
 - **RoundTypes**: `RoundTypeSelection`, `RoundTypePercentages`, `RoundTypeRandomFixedCounts`, `RoundTypeManualOrdering`.
 - **Weapons**: `UsableWeapons`, `AllowedWeaponSelectionTypes`, `DefaultWeapons`, `EnableAllWeaponsForEveryone`, `EnableWeaponShotguns`, `EnableWeaponPms`.
 - **AWP / SSG**: access mode, round availability, permissions, chances, per-team minimums and caps.
-- **EnemyStuff**: access mode, permission, chance, per-team limits.
+- **EnemyStuff**: access mode, permissions, chance, per-team limits.
 - **Zeus**: enable flag, chance, per-team caps.
 - **Nades**: `MaxNades`, `MaxTeamNades`.
 - **Database**: provider (`Sqlite`/`MySql`), connection string, migration toggle.
@@ -389,7 +389,7 @@ Full configuration example (current Absynthium server):
   },
   "EnemyStuff": {
     "EnableEnemyStuff": 2,
-    "EnemyStuffPermission": "@abs/premium",
+    "EnemyStuffPermissions": ["@abs/premium", "@css/vip"],
     "ChanceForEnemyStuff": 20,
     "MaxEnemyStuffPerTeam": {
       "Terrorist": 1,
