@@ -1,11 +1,11 @@
 ﻿#!/usr/bin/env bash
 
 TARGET_NAME="RetakesAllocator"
-TARGET_DIR="./bin/Release/net8.0"
+TARGET_DIR="./bin/Release/net10.0"
 NEW_DIR="./bin/Release/RetakesAllocator"
 SHARED_OUT="$NEW_DIR/shared/KitsuneMenu"
 SHARED_SRC_GAME="./game/csgo/addons/counterstrikesharp/shared/KitsuneMenu/KitsuneMenu.dll"
-SHARED_SRC_LOCAL="./KitsuneMenu/src/bin/Release/net8.0/KitsuneMenu.dll"
+SHARED_SRC_LOCAL="./KitsuneMenu/src/bin/Release/net10.0/KitsuneMenu.dll"
 
 echo $TARGET_NAME
 echo $TARGET_DIR

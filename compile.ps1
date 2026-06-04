@@ -6,13 +6,13 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
 $solution = Join-Path $root 'cs2-retakes-allocator.sln'
-$buildOutput = Join-Path $root 'RetakesAllocator/bin/Release/net8.0'
+$buildOutput = Join-Path $root 'RetakesAllocator/bin/Release/net10.0'
 $compiledRoot = Join-Path $root 'compiled'
 $pluginName = 'RetakesAllocator'
 $pluginTarget = Join-Path $compiledRoot "counterstrikesharp/plugins/$pluginName"
 $sharedTarget = Join-Path $compiledRoot "counterstrikesharp/shared/KitsuneMenu"
 $kitsuneSharedSource = Join-Path $root 'RetakesAllocator/game/csgo/addons/counterstrikesharp/shared/KitsuneMenu/KitsuneMenu.dll'
-$kitsuneLocalBuild = Join-Path $root 'RetakesAllocator/KitsuneMenu/src/bin/Release/net8.0/KitsuneMenu.dll'
+$kitsuneLocalBuild = Join-Path $root 'RetakesAllocator/KitsuneMenu/src/bin/Release/net10.0/KitsuneMenu.dll'
 
 # Clean staging directory
 Remove-Item -Recurse -Force $compiledRoot -ErrorAction SilentlyContinue
