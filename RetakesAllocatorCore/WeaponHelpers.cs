@@ -222,6 +222,7 @@ public static class WeaponHelpers
     {
         CsItem.Flashbang,
         CsItem.HE,
+        CsItem.HEGrenade,
         CsItem.Molotov,
         CsItem.Incendiary,
         CsItem.Smoke,
@@ -360,6 +361,7 @@ public static class WeaponHelpers
     private static readonly Dictionary<CsItem, string> _weaponNameOverrides = new()
     {
         {CsItem.M4A4, "M4A4"},
+        {CsItem.Tec9, "TEC9"},
     };
 
     public static List<WeaponAllocationType> WeaponAllocationTypes =>
@@ -373,6 +375,14 @@ public static class WeaponHelpers
     public static List<CsItem> AllWeapons => _allWeapons.ToList();
 
     public static bool IsWeapon(CsItem item) => _allWeapons.Contains(item);
+
+    public static bool IsUtil(CsItem item) => _allUtil.Contains(item);
+
+    public static CsItem NormalizeUtil(CsItem item) =>
+        item == CsItem.HEGrenade ? CsItem.HE : item;
+
+    public static bool IsSameUtil(CsItem first, CsItem second) =>
+        IsUtil(first) && IsUtil(second) && NormalizeUtil(first) == NormalizeUtil(second);
 
     public static string GetName(this CsItem item) =>
         _weaponNameOverrides.TryGetValue(item, out var overrideName)

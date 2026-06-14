@@ -85,6 +85,7 @@ public class ConfigTests : BaseTestFixture
             AllowAllocationAfterFreezeTime = false,
             UseOnTickFeatures = false,
             CapabilityWeaponPaints = false,
+            EnableBuyMenu = 0,
             EnableRoundTypeAnnouncement = false,
             EnableRoundTypeAnnouncementCenter = true,
             EnableBombSiteAnnouncementCenter = true,
@@ -211,6 +212,7 @@ public class ConfigTests : BaseTestFixture
         Assert.Multiple(() =>
         {
             Assert.That(roundTrip.ResetStateOnGameRestart, Is.False);
+            Assert.That(roundTrip.EnableBuyMenu, Is.EqualTo(0));
             Assert.That(roundTrip.EnableBombSiteAnnouncementCenter, Is.True);
             Assert.That(roundTrip.BombSiteAnnouncementCenterDelay, Is.EqualTo(3.5f));
             Assert.That(roundTrip.EnableNextRoundTypeVoting, Is.True);

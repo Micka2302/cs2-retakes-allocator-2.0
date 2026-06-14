@@ -9,7 +9,7 @@ public class NextRoundVoteManager : AbstractVoteManager
         .GetRoundTypes()
         .Select(r => r.ToString());
 
-    public NextRoundVoteManager() : base("the next round", "!nextround")
+    public NextRoundVoteManager() : base("vote.subject.next_round", "!nextround")
     {
     }
 
@@ -22,6 +22,6 @@ public class NextRoundVoteManager : AbstractVoteManager
     protected override void HandleVoteResult(string option)
     {
         RoundTypeManager.Instance.SetNextRoundTypeOverride(RoundTypeHelpers.ParseRoundType(option));
-        PrintToServer($"Vote complete! The next round will be {option}!");
+        PrintToServer(Translator.Instance["vote.complete_next_round", option]);
     }
 }

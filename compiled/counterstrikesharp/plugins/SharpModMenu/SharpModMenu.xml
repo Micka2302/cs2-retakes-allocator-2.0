@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SharpModMenu</name>
+    </assembly>
+    <members>
+        <member name="M:SharpModMenu.PlayerMenuState.CreateInitialInvisibleWorldTextEntity">
+            <summary>
+            The first world text isn't shown for some reason, this creates a barebones version then immediately destroys it
+            </summary>
+        </member>
+    </members>
+</doc>

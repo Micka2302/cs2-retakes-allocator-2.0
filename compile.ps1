@@ -10,14 +10,14 @@ $buildOutput = Join-Path $root 'RetakesAllocator/bin/Release/net8.0'
 $compiledRoot = Join-Path $root 'compiled'
 $pluginName = 'RetakesAllocator'
 $pluginTarget = Join-Path $compiledRoot "counterstrikesharp/plugins/$pluginName"
-$sharedTarget = Join-Path $compiledRoot "counterstrikesharp/shared/KitsuneMenu"
-$kitsuneSharedSource = Join-Path $root 'RetakesAllocator/game/csgo/addons/counterstrikesharp/shared/KitsuneMenu/KitsuneMenu.dll'
-$kitsuneLocalBuild = Join-Path $root 'RetakesAllocator/KitsuneMenu/src/bin/Release/net8.0/KitsuneMenu.dll'
+$counterStrikeSharpTarget = Join-Path $compiledRoot 'counterstrikesharp'
+$defaultSharpModMenuRoot = 'C:\Users\micka\Documents\GitHub\SharpModMenu'
+$sharpModMenuRoot = if ($env:SHARPMODMENU_ROOT) { $env:SHARPMODMENU_ROOT } else { $defaultSharpModMenuRoot }
+$sharpModMenuCompiledRoot = Join-Path $sharpModMenuRoot 'compiled/counterstrikesharp'
 
 # Clean staging directory
 Remove-Item -Recurse -Force $compiledRoot -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $pluginTarget -Force | Out-Null
-New-Item -ItemType Directory -Path $sharedTarget -Force | Out-Null
 
 dotnet restore $solution
 dotnet build $solution -c Release --no-restore --nologo
@@ -44,24 +44,36 @@ if (Test-Path $cssApi) {
     Remove-Item $cssApi -Force
 }
 
-# Copy KitsuneMenu shared DLL if available
-$kitsuneSource = $null
-if (Test-Path $kitsuneSharedSource) {
-    $kitsuneSource = $kitsuneSharedSource
-} elseif (Test-Path $kitsuneLocalBuild) {
-    $kitsuneSource = $kitsuneLocalBuild
-}
+if (Test-Path $sharpModMenuCompiledRoot) {
+    foreach ($relativePath in @(
+        'plugins/SharpModMenu',
+        'shared/SharpModMenu',
+        'shared/CSSUniversalMenuAPI',
+        'configs/plugins/SharpModMenu'
+    )) {
+        $sourcePath = Join-Path $sharpModMenuCompiledRoot $relativePath
+        if (-not (Test-Path $sourcePath)) {
+            continue
+        }
 
-if ($kitsuneSource) {
-    try {
-        Copy-Item -Force $kitsuneSource $sharedTarget
-        Write-Host " - KitsuneMenu copied to: $sharedTarget"
+        $targetPath = Join-Path $counterStrikeSharpTarget $relativePath
+        New-Item -ItemType Directory -Path (Split-Path -Parent $targetPath) -Force | Out-Null
+        Copy-Item -Path $sourcePath -Destination (Split-Path -Parent $targetPath) -Recurse -Force
+        Write-Host " - SharpModMenu component copied to: $targetPath"
     }
-    catch {
-        Write-Warning "Failed to copy KitsuneMenu.dll: $($_.Exception.Message)"
+
+    $sharpModMenuConfig = Join-Path $counterStrikeSharpTarget 'configs/plugins/SharpModMenu/sharpmodmenu_config.jsonc'
+    if (Test-Path $sharpModMenuConfig) {
+        $configText = Get-Content -Raw -Path $sharpModMenuConfig
+        $configText = $configText.Replace(
+            "<font color='#D10D0D'>Select: </font><font color='#F2A10F'>ZS/Use</font> <font color='#FFFFFF'>|</font> <font color='#D10D0D'>Exit:</font> <font color='#F2A10F'>Reload</font>",
+            "<font color='#D10D0D'>Select: </font><font color='#F2A10F'>ZS/Use</font>"
+        )
+        Set-Content -Path $sharpModMenuConfig -Value $configText -NoNewline
+        Write-Host " - SharpModMenu compact footer hides Exit text while keeping Reload close support."
     }
 } else {
-    Write-Warning "KitsuneMenu.dll not found (checked shared and local build paths)."
+    Write-Warning "SharpModMenu compiled output not found at $sharpModMenuCompiledRoot. Build SharpModMenu first or set SHARPMODMENU_ROOT."
 }
 
 # Zip the staged plugin + shared folder for convenience
@@ -73,5 +85,5 @@ Compress-Archive -Path (Join-Path $compiledRoot 'counterstrikesharp/*') -Destina
 
 Write-Host "[OK] Build finished."
 Write-Host " - Folder: $pluginTarget"
-Write-Host " - Shared: $sharedTarget"
+Write-Host " - SharpModMenu source: $sharpModMenuCompiledRoot"
 Write-Host " - Zip:    $zipPath"

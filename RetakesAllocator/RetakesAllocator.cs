@@ -22,7 +22,6 @@ using RetakesAllocator.AdvancedMenus;
 using static RetakesAllocatorCore.PluginInfo;
 using RetakesPluginShared;
 using RetakesPluginShared.Events;
-using KitsuneMenu.Core;
 
 namespace RetakesAllocator;
 
@@ -46,6 +45,16 @@ public class RetakesAllocator : BasePlugin
     private bool _announceBombsite;
     private bool _bombsiteAnnounceOneTime;
     private bool _weaponDataSignatureFailed;
+    private static readonly string[] BuyMenuCommands =
+    {
+        "buy",
+        "buymenu",
+        "buy_menu",
+        "autobuy",
+        "rebuy",
+        "buyammo1",
+        "buyammo2",
+    };
 
     #region Setup
 
@@ -56,7 +65,11 @@ public class RetakesAllocator : BasePlugin
         Log.Debug($"Loaded. Hot reload: {hotReload}");
         ResetState();
         Batteries.Init();
-        KitsuneMenu.KitsuneMenu.Init();
+
+        foreach (var command in BuyMenuCommands)
+        {
+            AddCommandListener(command, OnBuyMenuCommand, HookMode.Pre);
+        }
 
         RegisterListener<Listeners.OnMapStart>(mapName =>
         {
@@ -147,7 +160,7 @@ public class RetakesAllocator : BasePlugin
     public override void Unload(bool hotReload)
     {
         Log.Debug("Unloaded");
-        KitsuneMenu.KitsuneMenu.Cleanup();
+        _advancedGunMenu.Cleanup();
         ResetState(loadConfig: false);
         Queries.Disconnect();
 
@@ -203,13 +216,13 @@ public class RetakesAllocator : BasePlugin
     {
         if (!Helpers.PlayerIsValid(player))
         {
-            commandInfo.ReplyToCommand($"{MessagePrefix}This command can only be executed by a valid player.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.valid_player_only"]}");
             return;
         }
 
         if (!Configs.GetConfigData().EnableNextRoundTypeVoting)
         {
-            commandInfo.ReplyToCommand($"{MessagePrefix}Next round voting is disabled.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.next_round_vote_disabled"]}");
             return;
         }
 
@@ -222,7 +235,7 @@ public class RetakesAllocator : BasePlugin
     {
         if (!Configs.GetConfigData().GunCommandsEnabled)
         {
-            commandInfo.ReplyToCommand($"{MessagePrefix}Gun command is currently disabled by server config.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.gun_disabled"]}");
             return;
         }
         HandleWeaponCommand(player, commandInfo);
@@ -263,7 +276,7 @@ public class RetakesAllocator : BasePlugin
         var playerId = Helpers.GetSteamId(player);
         if (playerId == 0)
         {
-            commandInfo.ReplyToCommand("Cannot save preferences with invalid Steam ID.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["weapon_preference.invalid_steam_id"]}");
             return;
         }
 
@@ -327,7 +340,7 @@ public class RetakesAllocator : BasePlugin
         var playerId = Helpers.GetSteamId(player);
         if (playerId == 0)
         {
-            commandInfo.ReplyToCommand("Cannot save preferences with invalid Steam ID.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["weapon_preference.invalid_steam_id"]}");
             return;
         }
 
@@ -363,7 +376,7 @@ public class RetakesAllocator : BasePlugin
 
         if (!Configs.GetConfigData().IsZeusEnabled())
         {
-            var message = Translator.Instance["guns_menu.zeus_disabled_message"];
+            var message = Translator.Instance["weapon_preference.zeus_disabled"];
             commandInfo.ReplyToCommand($"{MessagePrefix}{message}");
             return;
         }
@@ -371,7 +384,7 @@ public class RetakesAllocator : BasePlugin
         var playerId = Helpers.GetSteamId(player);
         if (playerId == 0)
         {
-            commandInfo.ReplyToCommand("Cannot save preferences with invalid Steam ID.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["weapon_preference.invalid_steam_id"]}");
             return;
         }
 
@@ -387,13 +400,65 @@ public class RetakesAllocator : BasePlugin
         var messageKey = zeusEnabled ? "guns_menu.zeus_enabled_message" : "guns_menu.zeus_disabled_message";
         Helpers.WriteNewlineDelimited(Translator.Instance[messageKey], commandInfo.ReplyToCommand);
     }
+
+    [ConsoleCommand("css_enemy", "Toggle enemy weapon preferences.")]
+    [CommandHelper(usage: "[disable|t|ct|both]", whoCanExecute: CommandUsage.CLIENT_ONLY)]
+    public void OnEnemyWeaponsCommand(CCSPlayerController? player, CommandInfo commandInfo)
+    {
+        if (!Helpers.PlayerIsValid(player))
+        {
+            return;
+        }
+
+        if (!Helpers.HasEnemyStuffPermission(player!))
+        {
+            var mode = Configs.GetConfigData().GetEnemyStuffMode();
+            var permissionMessageKey = mode == AccessMode.Disabled
+                ? "weapon_preference.enemy_disabled"
+                : "weapon_preference.only_vip_can_use";
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance[permissionMessageKey]}");
+            return;
+        }
+
+        var playerId = Helpers.GetSteamId(player);
+        if (playerId == 0)
+        {
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["weapon_preference.invalid_steam_id"]}");
+            return;
+        }
+
+        var args = Helpers.CommandInfoToArgList(commandInfo);
+        var selectedPreference = Task.Run(async () =>
+        {
+            var currentPreference = NormalizeEnemyStuffPreference(
+                (await Queries.GetUserSettings(playerId))?.EnemyStuffTeamPreference);
+
+            var parsedPreference = args.Count > 0
+                ? ParseEnemyStuffPreference(args.First())
+                : GetNextEnemyStuffPreference(currentPreference);
+
+            if (parsedPreference is null)
+            {
+                return (EnemyStuffTeamPreference?)null;
+            }
+
+            await Queries.SetEnemyStuffPreferenceAsync(playerId, parsedPreference.Value);
+            return parsedPreference.Value;
+        }).Result;
+
+        var messageKey = selectedPreference.HasValue
+            ? GetEnemyStuffMessageKey(selectedPreference.Value)
+            : "guns_menu.enemy_stuff_usage";
+        Helpers.WriteNewlineDelimited(Translator.Instance[messageKey], commandInfo.ReplyToCommand);
+    }
+
     [ConsoleCommand("css_removegun")]
     [CommandHelper(minArgs: 1, usage: "<gun> [T|CT]", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void OnRemoveWeaponCommand(CCSPlayerController? player, CommandInfo commandInfo)
     {
         if (!Configs.GetConfigData().GunCommandsEnabled)
         {
-            commandInfo.ReplyToCommand($"{MessagePrefix}Gun command is currently disabled by server config.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.gun_disabled"]}");
             return;
         }
         if (!Helpers.PlayerIsValid(player))
@@ -440,7 +505,7 @@ public class RetakesAllocator : BasePlugin
     [RequiresPermissions("@css/root")]
     public void OnReloadAllocatorConfigCommand(CCSPlayerController? player, CommandInfo commandInfo)
     {
-        commandInfo.ReplyToCommand($"{MessagePrefix}Reloading config for version {ModuleVersion}");
+        commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.reload_config", ModuleVersion]}");
         Configs.Load(ModuleDirectory);
         RoundTypeManager.Instance.Initialize();
     }
@@ -454,7 +519,7 @@ public class RetakesAllocator : BasePlugin
         var response = Configs.StringifyConfig(configName);
         if (response is null)
         {
-            commandInfo.ReplyToCommand($"{MessagePrefix}Invalid config name.");
+            commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.invalid_config"]}");
             return;
         }
 
@@ -465,6 +530,13 @@ public class RetakesAllocator : BasePlugin
     #endregion
 
     #region Events
+
+    private HookResult OnBuyMenuCommand(CCSPlayerController? player, CommandInfo commandInfo)
+    {
+        return Configs.GetConfigData().IsBuyMenuEnabled()
+            ? HookResult.Continue
+            : HookResult.Handled;
+    }
 
     public HookResult OnWeaponCanAcquire(DynamicHook hook)
     {
@@ -567,6 +639,12 @@ public class RetakesAllocator : BasePlugin
 
             return userSetting?.ZeusEnabled == true ? HookResult.Continue : RetStop();
         }
+
+        if (WeaponHelpers.IsUtil(item))
+        {
+            return RetStop();
+        }
+
         if (!WeaponHelpers.IsUsableWeapon(item))
         {
             return RetStop();
@@ -665,7 +743,7 @@ public class RetakesAllocator : BasePlugin
                 {
                     if (!WeaponHelpers.IsWeapon(i))
                     {
-                        return i == item;
+                        return WeaponHelpers.IsSameUtil(i, item) || i == item;
                     }
 
                     if (RoundTypeManager.Instance.GetCurrentRoundType() is null)
@@ -851,7 +929,7 @@ public class RetakesAllocator : BasePlugin
             _advancedGunMenu.OnTick();
         }
 
-        if (_announceBombsite)
+        if (_announceBombsite && !string.IsNullOrEmpty(_bombsite))
         {
             var playerEntities = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
             var countct = Utilities.GetPlayers()
@@ -896,8 +974,7 @@ public class RetakesAllocator : BasePlugin
 
         if (Configs.GetConfigData().ForceCloseBombSiteAnnouncementCenterOnPlant)
         {
-            _bombsite = "";
-            _announceBombsite = false;
+            StopBombSiteAnnouncement();
         }
 
         return HookResult.Continue;
@@ -917,8 +994,7 @@ public class RetakesAllocator : BasePlugin
     {
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (@event == null) return HookResult.Continue;
-        _bombsite = "";
-        _announceBombsite = false;
+        StopBombSiteAnnouncement();
         return HookResult.Continue;
     }
 
@@ -953,29 +1029,17 @@ public class RetakesAllocator : BasePlugin
                         _bombsite = "A";
                         if (Configs.GetConfigData().EnableBombSiteAnnouncementCenter)
                         {
-                            Server.NextFrame(() =>
-                            {
-                                AddTimer(Configs.GetConfigData().BombSiteAnnouncementCenterDelay, () =>
-                                {
-                                    _bombsiteAnnounceOneTime = true;
-                                    _announceBombsite = true;
-                                    AddTimer(Configs.GetConfigData().BombSiteAnnouncementCenterShowTimer, () =>
-                                    {
-                                        _bombsite = "";
-                                        _announceBombsite = false;
-                                    }, TimerFlags.STOP_ON_MAPCHANGE);
-                                }, TimerFlags.STOP_ON_MAPCHANGE);
-                            });
+                            ScheduleBombSiteAnnouncement();
                         }
 
                         if (Configs.GetConfigData().EnableBombSiteAnnouncementChat)
                         {
-                            Server.PrintToChatAll(Localizer["chatAsite.line1"]);
-                            Server.PrintToChatAll(Localizer["chatAsite.line2"]);
-                            Server.PrintToChatAll(Localizer["chatAsite.line3"]);
-                            Server.PrintToChatAll(Localizer["chatAsite.line4"]);
-                            Server.PrintToChatAll(Localizer["chatAsite.line5"]);
-                            Server.PrintToChatAll(Localizer["chatAsite.line6"]);
+                            Server.PrintToChatAll(Translator.Instance["chatAsite.line1"]);
+                            Server.PrintToChatAll(Translator.Instance["chatAsite.line2"]);
+                            Server.PrintToChatAll(Translator.Instance["chatAsite.line3"]);
+                            Server.PrintToChatAll(Translator.Instance["chatAsite.line4"]);
+                            Server.PrintToChatAll(Translator.Instance["chatAsite.line5"]);
+                            Server.PrintToChatAll(Translator.Instance["chatAsite.line6"]);
                         }
 
                         break;
@@ -985,29 +1049,17 @@ public class RetakesAllocator : BasePlugin
                         _bombsite = "B";
                         if (Configs.GetConfigData().EnableBombSiteAnnouncementCenter)
                         {
-                            Server.NextFrame(() =>
-                            {
-                                AddTimer(Configs.GetConfigData().BombSiteAnnouncementCenterDelay, () =>
-                                {
-                                    _bombsiteAnnounceOneTime = true;
-                                    _announceBombsite = true;
-                                    AddTimer(Configs.GetConfigData().BombSiteAnnouncementCenterShowTimer, () =>
-                                    {
-                                        _bombsite = "";
-                                        _announceBombsite = false;
-                                    }, TimerFlags.STOP_ON_MAPCHANGE);
-                                }, TimerFlags.STOP_ON_MAPCHANGE);
-                            });
+                            ScheduleBombSiteAnnouncement();
                         }
 
                         if (Configs.GetConfigData().EnableBombSiteAnnouncementChat)
                         {
-                            Server.PrintToChatAll(Localizer["chatBsite.line1"]);
-                            Server.PrintToChatAll(Localizer["chatBsite.line2"]);
-                            Server.PrintToChatAll(Localizer["chatBsite.line3"]);
-                            Server.PrintToChatAll(Localizer["chatBsite.line4"]);
-                            Server.PrintToChatAll(Localizer["chatBsite.line5"]);
-                            Server.PrintToChatAll(Localizer["chatBsite.line6"]);
+                            Server.PrintToChatAll(Translator.Instance["chatBsite.line1"]);
+                            Server.PrintToChatAll(Translator.Instance["chatBsite.line2"]);
+                            Server.PrintToChatAll(Translator.Instance["chatBsite.line3"]);
+                            Server.PrintToChatAll(Translator.Instance["chatBsite.line4"]);
+                            Server.PrintToChatAll(Translator.Instance["chatBsite.line5"]);
+                            Server.PrintToChatAll(Translator.Instance["chatBsite.line6"]);
                         }
 
                         break;
@@ -1026,6 +1078,17 @@ public class RetakesAllocator : BasePlugin
         if (!string.IsNullOrEmpty(Configs.GetConfigData().InGameGunMenuCenterCommands))
         {
             _advancedGunMenu.OnEventPlayerDisconnect(@event, info);
+        }
+
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler(HookMode.Post)]
+    public HookResult OnEventPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
+    {
+        if (!string.IsNullOrEmpty(Configs.GetConfigData().InGameGunMenuCenterCommands))
+        {
+            _advancedGunMenu.OnEventPlayerSpawn(@event, info);
         }
 
         return HookResult.Continue;
@@ -1150,6 +1213,51 @@ public class RetakesAllocator : BasePlugin
         });
     }
 
+    private void ScheduleBombSiteAnnouncement()
+    {
+        if (_bombsiteAnnounceOneTime || string.IsNullOrEmpty(_bombsite))
+        {
+            return;
+        }
+
+        _bombsiteAnnounceOneTime = true;
+        var scheduledBombsite = _bombsite;
+        var delay = Helpers.IsFreezePeriod()
+            ? 0
+            : Configs.GetConfigData().BombSiteAnnouncementCenterDelay;
+
+        void StartIfStillCurrent()
+        {
+            if (_bombsite != scheduledBombsite)
+            {
+                return;
+            }
+
+            _announceBombsite = true;
+            AddTimer(Configs.GetConfigData().BombSiteAnnouncementCenterShowTimer, () =>
+            {
+                if (_bombsite == scheduledBombsite)
+                {
+                    StopBombSiteAnnouncement();
+                }
+            }, TimerFlags.STOP_ON_MAPCHANGE);
+        }
+
+        if (delay <= 0)
+        {
+            StartIfStillCurrent();
+            return;
+        }
+
+        AddTimer(delay, StartIfStillCurrent, TimerFlags.STOP_ON_MAPCHANGE);
+    }
+
+    private void StopBombSiteAnnouncement()
+    {
+        _bombsite = "";
+        _announceBombsite = false;
+    }
+
     private void GiveDefuseKit(CCSPlayerController player)
     {
         AddTimer(0.1f, () =>
@@ -1164,6 +1272,60 @@ public class RetakesAllocator : BasePlugin
             var itemServices = new CCSPlayer_ItemServices(player.PlayerPawn.Value.ItemServices.Handle);
             itemServices.HasDefuser = true;
         });
+    }
+
+    private static EnemyStuffTeamPreference NormalizeEnemyStuffPreference(EnemyStuffTeamPreference? preference)
+    {
+        if (preference is null)
+        {
+            return EnemyStuffTeamPreference.None;
+        }
+
+        var value = preference.Value;
+        var includesT = value.HasFlag(EnemyStuffTeamPreference.Terrorist);
+        var includesCt = value.HasFlag(EnemyStuffTeamPreference.CounterTerrorist);
+
+        return (includesT, includesCt) switch
+        {
+            (true, true) => EnemyStuffTeamPreference.Both,
+            (true, false) => EnemyStuffTeamPreference.Terrorist,
+            (false, true) => EnemyStuffTeamPreference.CounterTerrorist,
+            _ => EnemyStuffTeamPreference.None,
+        };
+    }
+
+    private static EnemyStuffTeamPreference GetNextEnemyStuffPreference(EnemyStuffTeamPreference currentPreference)
+    {
+        return NormalizeEnemyStuffPreference(currentPreference) switch
+        {
+            EnemyStuffTeamPreference.None => EnemyStuffTeamPreference.Terrorist,
+            EnemyStuffTeamPreference.Terrorist => EnemyStuffTeamPreference.CounterTerrorist,
+            EnemyStuffTeamPreference.CounterTerrorist => EnemyStuffTeamPreference.Both,
+            _ => EnemyStuffTeamPreference.None,
+        };
+    }
+
+    private static EnemyStuffTeamPreference? ParseEnemyStuffPreference(string input)
+    {
+        return input.Trim().ToLowerInvariant() switch
+        {
+            "0" or "off" or "disable" or "disabled" or "none" => EnemyStuffTeamPreference.None,
+            "1" or "t" or "terrorist" => EnemyStuffTeamPreference.Terrorist,
+            "2" or "ct" or "counterterrorist" or "counter_terrorist" => EnemyStuffTeamPreference.CounterTerrorist,
+            "3" or "both" or "all" => EnemyStuffTeamPreference.Both,
+            _ => null,
+        };
+    }
+
+    private static string GetEnemyStuffMessageKey(EnemyStuffTeamPreference preference)
+    {
+        return NormalizeEnemyStuffPreference(preference) switch
+        {
+            EnemyStuffTeamPreference.None => "guns_menu.enemy_stuff_disabled_message",
+            EnemyStuffTeamPreference.Terrorist => "guns_menu.enemy_stuff_enabled_t_message",
+            EnemyStuffTeamPreference.CounterTerrorist => "guns_menu.enemy_stuff_enabled_ct_message",
+            _ => "guns_menu.enemy_stuff_enabled_both_message",
+        };
     }
 
     #endregion

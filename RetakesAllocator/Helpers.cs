@@ -176,9 +176,14 @@ public static class Helpers
         return GetGameRules()?.WarmupPeriod ?? false;
     }
 
+    public static bool IsFreezePeriod()
+    {
+        return GetGameRules()?.FreezePeriod ?? false;
+    }
+
     public static bool IsWeaponAllocationAllowed()
     {
-        return WeaponHelpers.IsWeaponAllocationAllowed(GetGameRules()?.FreezePeriod ?? false);
+        return WeaponHelpers.IsWeaponAllocationAllowed(IsFreezePeriod());
     }
 
     public static double GetVectorDistance(Vector v1, Vector v2)

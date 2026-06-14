@@ -1,0 +1,46 @@
+{
+	/* SharpModMenu config */
+
+	// Verbose debug logs in server console
+	"Debug": false,
+
+	// Default menu position for players (3D/HTML fallback)
+	"DefaultMenuPositionX": -6.55,
+	"DefaultMenuPositionY": 0.0,
+
+	// 3D menu text style
+	"WorldTextFontName": "Tahoma Bold",
+	"WorldTextFontSize": 25,
+	"WorldTextHighlightColor": "#7FFFFF40",
+	"WorldTextForegroundColor": "#E79827",
+	"WorldTextBackgroundTextColor": "#FFFFFF",
+	"WorldTextPanelColor": "#C87F7F7F",
+
+	// HTML fallback colors
+	"HtmlForegroundHighlightColor": "#EFCE21",
+	"HtmlForegroundColor": "#FFFFFF",
+	"HtmlBackgroundHighlightColor": "#EFE472",
+	"HtmlBackgroundColor": "#E7CCA5",
+	"HtmlEmptyLineColor": "#000",
+
+	// Freeze player movement while menu is open in WASD mode
+	"FreezePlayerMovement": true,
+
+	// Icon shown around each selectable option
+	"SelectorIcon": "\u279C",
+	"SelectorIconColor": "#EFCE21",
+
+	"HtmlFontClass": "fontSize-m",
+
+
+	// Message shown in compact footer mode (when HtmlFontClass is bigger than fontSize-s)
+	// Leave empty to use translated defaults.
+	"HtmlCompactFooterMessage": "<font color='#D10D0D'>Select: </font><font color='#F2A10F'>ZS/Use</font>",
+
+	// Optional font class for compact footer message only (example: fontSize-xs, fontSize-s, fontSize-m)
+	"HtmlCompactFooterFontClass": "fontSize-s",
+
+	// In WASD mode, pressing movement key beyond first/last item changes page automatically.
+	// AZERTY example: Z at top goes to previous page, S at bottom goes to next page.
+	"WasdAutoPage": true
+}

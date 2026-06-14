@@ -289,7 +289,6 @@ RetakesAllocator.cs
  sqlitepclraw.provider.e_sqlite3/2.1.7/lib/net6.0/SQLitePCLRaw.provider.e_sqlite3.dll
  system.diagnostics.eventlog/8.0.0/lib/net8.0/System.Diagnostics.EventLog.dll
  tomlyn/0.19.0/lib/net8.0/Tomlyn.dll
-KitsuneMenu/src/bin/Debug/net8.0/KitsuneMenu.dll
 
 [analyzerReferences]
 <DOTNET>/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/analyzers/

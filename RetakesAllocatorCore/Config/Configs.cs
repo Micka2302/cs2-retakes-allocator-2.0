@@ -339,6 +339,7 @@ public record ConfigData
     public bool UseOnTickFeatures { get; set; } = true;
     public bool CapabilityWeaponPaints { get; set; } = true;
     public bool GunCommandsEnabled { get; set; } = true;
+    public int EnableBuyMenu { get; set; } = 1;
     public bool EnableRoundTypeAnnouncement { get; set; } = true;
     public bool EnableRoundTypeAnnouncementCenter { get; set; } = false;
     public bool EnableBombSiteAnnouncementCenter { get; set; } = false;
@@ -414,6 +415,7 @@ public record ConfigData
     public string DatabaseConnectionString { get; set; } = "Data Source=data.db; Pooling=False";
     public bool AutoUpdateSignatures { get; set; } = true;
 
+    public bool IsBuyMenuEnabled() => EnableBuyMenu > 0;
     public bool IsZeusEnabled() => EnableZeus > 0;
 
     public AccessMode GetAwpMode() => ToAccessMode(EnableAwp);
@@ -486,6 +488,11 @@ public record ConfigData
         if (EnableEnemyStuff is < 0 or > 2)
         {
             throw new Exception("'EnableEnemyStuff' must be 0 (disabled), 1 (everyone), or 2 (vip)");
+        }
+
+        if (EnableBuyMenu is < 0 or > 1)
+        {
+            throw new Exception("'EnableBuyMenu' must be 0 (disabled) or 1 (enabled)");
         }
 
         foreach (var (team, maxEnemyStuff) in MaxEnemyStuffPerTeam)
@@ -601,6 +608,7 @@ public record ConfigFileLayout
             UseOnTickFeatures = data.UseOnTickFeatures,
             CapabilityWeaponPaints = data.CapabilityWeaponPaints,
             GunCommandsEnabled = data.GunCommandsEnabled,
+            EnableBuyMenu = data.EnableBuyMenu,
             EnableRoundTypeAnnouncement = data.EnableRoundTypeAnnouncement,
             EnableRoundTypeAnnouncementCenter = data.EnableRoundTypeAnnouncementCenter,
             EnableBombSiteAnnouncementCenter = data.EnableBombSiteAnnouncementCenter,
@@ -703,6 +711,10 @@ public record ConfigFileLayout
             if (Config.GunCommandsEnabled is bool gunCommandsEnabled)
             {
                 data.GunCommandsEnabled = gunCommandsEnabled;
+            }
+            if (Config.EnableBuyMenu is int enableBuyMenu)
+            {
+                data.EnableBuyMenu = enableBuyMenu;
             }
             if (Config.EnableRoundTypeAnnouncement is bool enableRoundTypeAnnouncement)
             {
@@ -995,6 +1007,7 @@ public record ConfigCategory
     public bool? UseOnTickFeatures { get; set; }
     public bool? CapabilityWeaponPaints { get; set; }
     public bool? GunCommandsEnabled { get; set; }
+    public int? EnableBuyMenu { get; set; }
     public bool? EnableRoundTypeAnnouncement { get; set; }
     public bool? EnableRoundTypeAnnouncementCenter { get; set; }
     public bool? EnableBombSiteAnnouncementCenter { get; set; }
