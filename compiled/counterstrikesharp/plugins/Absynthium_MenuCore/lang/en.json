@@ -1,0 +1,12 @@
+{
+  "absynthium_menu.back": "Back",
+  "absynthium_menu.chat": "Chat Menu",
+  "absynthium_menu.center": "Center Menu",
+  "absynthium_menu.control": "Button Menu",
+  "absynthium_menu.empty": "Empty",
+  "absynthium_menu.footer": "[!7] Back  [!8] Next  [!9] Exit",
+  "absynthium_menu.metamod": "Metamod Menu",
+  "absynthium_menu.select_type": "Choose menu type",
+  "absynthium_menu.selected_type": "Selected menu type:",
+  "absynthium_menu.console": "Console Menu"
+}

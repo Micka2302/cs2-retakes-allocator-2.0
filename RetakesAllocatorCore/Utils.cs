@@ -94,6 +94,7 @@ public static class Utils
 
     public static void SetupSqlite(string connectionString, DbContextOptionsBuilder optionsBuilder)
     {
+        SqliteProviderInitializer.Initialize();
         optionsBuilder.UseSqlite(connectionString);
     }
 }

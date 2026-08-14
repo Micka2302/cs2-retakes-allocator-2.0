@@ -1,0 +1,27 @@
+{
+  "DefaultMenu": "ButtonMenu",
+  "SoundScroll": "sounds/ui/panorama/sidemenu_rollover_02.vsnd_c",
+  "SoundClick": "sounds/ui/panorama/submenu_dropdown_select_01.vsnd_c",
+  "SoundDisabled": "sounds/ui/menu_invalid.vsnd_c",
+  "SoundBack": "sounds/ui/menu_back.vsnd_c",
+  "SoundExit": "sounds/ui/panorama/mainmenu_press_quit_02.vsnd_c",
+  "MoveWhileOpenMenu": false,
+  "ButtonsConfig": {
+    "UpButton": 8,
+    "DownButton": 16,
+    "LeftButton": 512,
+    "RightButton": 1024,
+    "SelectButton": 32,
+    "ExitButton": 8192,
+    "BackButton": 4
+  },
+  "IgnoreErrors": true,
+  "MenuLinesCount": 6,
+  "UseWorkshopButtonImages": true,
+  "ButtonImagePath": "panorama/images/menu_buttons",
+  "ButtonImageExtension": "vsvg",
+  "KeyboardLayout": "AZERTY",
+  "UseMetamodMenu": false,
+  "UseMetamodMenuReplace": false,
+  "ConfigVersion": 1
+}

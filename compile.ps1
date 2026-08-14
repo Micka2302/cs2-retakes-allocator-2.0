@@ -6,14 +6,115 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
 $solution = Join-Path $root 'cs2-retakes-allocator.sln'
-$buildOutput = Join-Path $root 'RetakesAllocator/bin/Release/net8.0'
+$buildOutput = Join-Path $root 'RetakesAllocator/bin/Release/net10.0'
 $compiledRoot = Join-Path $root 'compiled'
 $pluginName = 'RetakesAllocator'
 $pluginTarget = Join-Path $compiledRoot "counterstrikesharp/plugins/$pluginName"
 $counterStrikeSharpTarget = Join-Path $compiledRoot 'counterstrikesharp'
-$defaultSharpModMenuRoot = 'C:\Users\micka\Documents\GitHub\SharpModMenu'
-$sharpModMenuRoot = if ($env:SHARPMODMENU_ROOT) { $env:SHARPMODMENU_ROOT } else { $defaultSharpModMenuRoot }
-$sharpModMenuCompiledRoot = Join-Path $sharpModMenuRoot 'compiled/counterstrikesharp'
+$defaultAbsynthiumMenuRoot = Join-Path (Split-Path -Parent $root) 'Absynthium_Menu'
+$absynthiumMenuRoot = if ($env:ABSYNTHIUM_MENU_ROOT) { $env:ABSYNTHIUM_MENU_ROOT } else { $defaultAbsynthiumMenuRoot }
+$absynthiumMenuCompiledRoot = Join-Path $absynthiumMenuRoot 'compiled/counterstrikesharp'
+$dependencyCache = Join-Path $root 'obj/dependencies'
+
+function Get-VerifiedPackage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Url,
+        [Parameter(Mandatory = $true)][string]$Sha256
+    )
+
+    New-Item -ItemType Directory -Path $dependencyCache -Force | Out-Null
+    $packagePath = Join-Path $dependencyCache $Name
+    $needsDownload = -not (Test-Path -LiteralPath $packagePath -PathType Leaf)
+
+    if (-not $needsDownload) {
+        $actualHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash
+        $needsDownload = $actualHash -ne $Sha256
+    }
+
+    if ($needsDownload) {
+        Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $packagePath
+    }
+
+    $verifiedHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash
+    if ($verifiedHash -ne $Sha256) {
+        throw "Checksum mismatch for $Name. Expected $Sha256, got $verifiedHash."
+    }
+
+    return $packagePath
+}
+
+function Expand-CounterStrikeSharpPackage {
+    param(
+        [Parameter(Mandatory = $true)][string]$PackagePath,
+        [switch]$TrimAnyBaseRuntimes
+    )
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($PackagePath)
+    $destinationRoot = [IO.Path]::GetFullPath($counterStrikeSharpTarget) + [IO.Path]::DirectorySeparatorChar
+
+    try {
+        foreach ($entry in $archive.Entries) {
+            $entryPath = $entry.FullName.Replace('\', '/')
+            $prefix = 'addons/counterstrikesharp/'
+            if (-not $entryPath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            $relativePath = $entryPath.Substring($prefix.Length)
+            if ([string]::IsNullOrWhiteSpace($relativePath) -or [string]::IsNullOrWhiteSpace($entry.Name)) {
+                continue
+            }
+
+            if ($TrimAnyBaseRuntimes -and
+                $relativePath -match '^shared/AnyBaseLib/runtimes/([^/]+)/' -and
+                $Matches[1] -notin @('linux-x64', 'win-x64')) {
+                continue
+            }
+
+            $destinationPath = [IO.Path]::GetFullPath((Join-Path $counterStrikeSharpTarget $relativePath))
+            if (-not $destinationPath.StartsWith($destinationRoot, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to extract outside the package root: $relativePath"
+            }
+
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destinationPath) -Force | Out-Null
+            $sourceStream = $entry.Open()
+            try {
+                $destinationStream = [IO.File]::Create($destinationPath)
+                try {
+                    $sourceStream.CopyTo($destinationStream)
+                }
+                finally {
+                    $destinationStream.Dispose()
+                }
+            }
+            finally {
+                $sourceStream.Dispose()
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
+$absynthiumBuildScript = Join-Path $absynthiumMenuRoot 'compile.ps1'
+if (-not (Test-Path -LiteralPath $absynthiumBuildScript -PathType Leaf)) {
+    throw "Absynthium_Menu build script not found at $absynthiumBuildScript. Set ABSYNTHIUM_MENU_ROOT to the repository path."
+}
+
+Write-Host "Building Absynthium_Menu from: $absynthiumMenuRoot"
+& $absynthiumBuildScript -Configuration Release
+
+$absynthiumBuildApi = Join-Path $absynthiumMenuCompiledRoot 'shared/Absynthium_MenuApi/Absynthium_MenuApi.dll'
+if (-not (Test-Path -LiteralPath $absynthiumBuildApi -PathType Leaf)) {
+    throw "Absynthium_Menu API build output not found at $absynthiumBuildApi"
+}
+
+$buildApiTarget = Join-Path $root 'lib/Absynthium_MenuApi.dll'
+New-Item -ItemType Directory -Path (Split-Path -Parent $buildApiTarget) -Force | Out-Null
+Copy-Item -LiteralPath $absynthiumBuildApi -Destination $buildApiTarget -Force
 
 # Clean staging directory
 Remove-Item -Recurse -Force $compiledRoot -ErrorAction SilentlyContinue
@@ -44,37 +145,41 @@ if (Test-Path $cssApi) {
     Remove-Item $cssApi -Force
 }
 
-if (Test-Path $sharpModMenuCompiledRoot) {
+if (Test-Path $absynthiumMenuCompiledRoot) {
     foreach ($relativePath in @(
-        'plugins/SharpModMenu',
-        'shared/SharpModMenu',
-        'shared/CSSUniversalMenuAPI',
-        'configs/plugins/SharpModMenu'
+        'plugins/Absynthium_MenuCore',
+        'shared/Absynthium_MenuApi'
     )) {
-        $sourcePath = Join-Path $sharpModMenuCompiledRoot $relativePath
+        $sourcePath = Join-Path $absynthiumMenuCompiledRoot $relativePath
         if (-not (Test-Path $sourcePath)) {
-            continue
+            throw "Required Absynthium_Menu component not found: $sourcePath"
         }
 
         $targetPath = Join-Path $counterStrikeSharpTarget $relativePath
         New-Item -ItemType Directory -Path (Split-Path -Parent $targetPath) -Force | Out-Null
         Copy-Item -Path $sourcePath -Destination (Split-Path -Parent $targetPath) -Recurse -Force
-        Write-Host " - SharpModMenu component copied to: $targetPath"
-    }
-
-    $sharpModMenuConfig = Join-Path $counterStrikeSharpTarget 'configs/plugins/SharpModMenu/sharpmodmenu_config.jsonc'
-    if (Test-Path $sharpModMenuConfig) {
-        $configText = Get-Content -Raw -Path $sharpModMenuConfig
-        $configText = $configText.Replace(
-            "<font color='#D10D0D'>Select: </font><font color='#F2A10F'>ZS/Use</font> <font color='#FFFFFF'>|</font> <font color='#D10D0D'>Exit:</font> <font color='#F2A10F'>Reload</font>",
-            "<font color='#D10D0D'>Select: </font><font color='#F2A10F'>ZS/Use</font>"
-        )
-        Set-Content -Path $sharpModMenuConfig -Value $configText -NoNewline
-        Write-Host " - SharpModMenu compact footer hides Exit text while keeping Reload close support."
+        Write-Host " - Absynthium_Menu component copied to: $targetPath"
     }
 } else {
-    Write-Warning "SharpModMenu compiled output not found at $sharpModMenuCompiledRoot. Build SharpModMenu first or set SHARPMODMENU_ROOT."
+    throw "Absynthium_Menu compiled output not found at $absynthiumMenuCompiledRoot."
 }
+
+$absynthiumConfigTarget = Join-Path $counterStrikeSharpTarget 'configs/plugins/Absynthium_MenuCore'
+New-Item -ItemType Directory -Path $absynthiumConfigTarget -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $root 'Resources/Absynthium_MenuCore.example.json') `
+    -Destination (Join-Path $absynthiumConfigTarget 'Absynthium_MenuCore.example.json') -Force
+
+$playerSettingsPackage = Get-VerifiedPackage `
+    -Name 'PlayerSettings-0.9.4.zip' `
+    -Url 'https://github.com/NickFox007/PlayerSettingsCS2/releases/download/0.9.4/PlayerSettings.zip' `
+    -Sha256 '6D6645F728DBE07CA37264AB55F228AB4DCB3740CBA02C52FBB27EF15FAED0AC'
+Expand-CounterStrikeSharpPackage -PackagePath $playerSettingsPackage
+
+$anyBasePackage = Get-VerifiedPackage `
+    -Name 'AnyBaseLib-0.9.4.zip' `
+    -Url 'https://github.com/NickFox007/AnyBaseLibCS2/releases/download/0.9.4/AnyBaseLib.zip' `
+    -Sha256 'AB3190F43D7AFC95D609BBB755279552FBA0283CE0A2681C371601A4BD7867FF'
+Expand-CounterStrikeSharpPackage -PackagePath $anyBasePackage -TrimAnyBaseRuntimes
 
 # Zip the staged plugin + shared folder for convenience
 $zipPath = Join-Path $compiledRoot "$pluginName.zip"
@@ -85,5 +190,6 @@ Compress-Archive -Path (Join-Path $compiledRoot 'counterstrikesharp/*') -Destina
 
 Write-Host "[OK] Build finished."
 Write-Host " - Folder: $pluginTarget"
-Write-Host " - SharpModMenu source: $sharpModMenuCompiledRoot"
+Write-Host " - Absynthium_Menu source: $absynthiumMenuCompiledRoot"
+Write-Host " - Bundled dependencies: PlayerSettings 0.9.4, AnyBaseLib 0.9.4"
 Write-Host " - Zip:    $zipPath"

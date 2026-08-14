@@ -3,24 +3,100 @@
 Allocator plugin that runs alongside B3none's [cs2-retakes](https://github.com/b3none/cs2-retakes). It picks round types, gives players the right loadouts, and handles sniper queues, enemy-weapon swaps, and Zeus preferences.
 
 ## What's new in 2.6
-- SharpModMenu loadout menu (`guns`, `!guns`, `/guns`) for primaries, pistols, sniper choice, enemy weapons, and Zeus.
+- Absynthium_Menu loadout menu (`guns`, `!guns`, `/guns`) for primaries, pistols, sniper choice, enemy weapons, and Zeus.
 - Sniper system reworked: separate AWP and SSG queues with per-queue access mode (disabled/everyone/VIP), per-team caps and minimum player gates, random sniper option, auto-snipers counted in the AWP queue.
 - Enemy-weapon and Zeus preferences now have permissions, per-team limits, and menu controls.
 - Config file is category-based (legacy keys auto-converted). Shotguns/SMGs can be added to full-buy pools; gun commands can be toggled.
 - Optional bombsite HUD/chat announcements and signature auto-update switches under `Config`.
+- Native SQLite now uses the operating-system library, avoiding `GLIBC_2.33` errors on older Linux servers.
 
 ## Requirements
-- CounterStrikeSharp server.
-- B3none's cs2-retakes with `EnableFallbackAllocation` disabled.
-- Release zip from this repo (includes sqlite runtimes, SharpModMenu, and CSSUniversalMenuAPI).
+
+### Install separately
+
+- [Metamod:Source](https://www.sourcemm.net/downloads.php?branch=master) and [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) 1.0.371 or newer. The plugin targets .NET 10; use a CounterStrikeSharp package that includes a compatible runtime, or install the .NET 10 runtime separately.
+- B3none's [cs2-retakes](https://github.com/b3none/cs2-retakes), with `EnableFallbackAllocation` disabled so both plugins do not allocate weapons simultaneously.
+- Linux with the default SQLite configuration: the system package that provides `libsqlite3.so.0` (`libsqlite3-0` on Debian/Ubuntu or `sqlite-libs` on RHEL-compatible distributions). Windows uses the system `winsqlite3.dll` and needs no additional SQLite package.
+- For SVG button images: [MultiAddonManager](https://github.com/Source2ZE/MultiAddonManager) and the [Absynthium client Workshop addon](https://steamcommunity.com/sharedfiles/filedetails/?id=3782333430). The menu can run without the Workshop addon, but its button images will not be displayed.
+- Optional: a MySQL/MariaDB server when `Database.DatabaseProvider` is set to `MySql`. SQLite is the default and does not require a separate database server.
+
+### Included in `RetakesAllocator.zip`
+
+Do not download these components separately; the release archive installs compatible copies together:
+
+- `RetakesAllocator` and its managed database dependencies.
+- `Absynthium_MenuCore` and `Absynthium_MenuApi`.
+- PlayerSettings 0.9.4 and `PlayerSettingsApi`, used to persist each player's selected menu type.
+- AnyBaseLib 0.9.4 and the runtime files required by PlayerSettings.
+- An `Absynthium_MenuCore.example.json` configuration enabling Workshop SVG images with an AZERTY layout.
+
+If these dependencies are already installed, replace them with the copies from the same release ZIP to avoid API/version mismatches.
 
 ## Installation
+
+### Fresh installation
+
 1. Stop the server.
-2. Download the latest release from this repo.
-3. Copy the zip contents into `game/csgo/addons/counterstrikesharp/plugins/RetakesAllocator/` (keep the `runtimes/` folder).
-4. Start once to generate `config/config.json`, then edit it (see below).
-5. Optional buy-menu support: in `game/csgo/cfg/cs2-retakes/retakes.cfg` set  
+2. Install or update Metamod:Source, CounterStrikeSharp 1.0.371+, and B3none's cs2-retakes.
+3. Download `RetakesAllocator.zip` from the latest GitHub release.
+4. Extract the ZIP directly into `game/csgo/addons/counterstrikesharp/`. Keep its directory structure intact. After extraction, the important directories are:
+
+   ```text
+   configs/plugins/Absynthium_MenuCore/
+   plugins/Absynthium_MenuCore/
+   plugins/PlayerSettings/
+   plugins/RetakesAllocator/
+   shared/Absynthium_MenuApi/
+   shared/AnyBaseLib/
+   shared/PlayerSettingsApi/
+   ```
+
+5. On a Debian/Ubuntu Linux server using SQLite, install the system library:
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install libsqlite3-0
+   ```
+
+   On RHEL-compatible distributions, install `sqlite-libs` instead. This step is not needed on Windows or when the allocator is configured exclusively for MySQL.
+
+6. Enable the included menu's Workshop button images:
+
+   - Install MultiAddonManager and verify that `meta list` shows it as loaded.
+   - Add the Workshop ID to `game/csgo/cfg/multiaddonmanager/multiaddonmanager.cfg`:
+
+     ```cfg
+     mm_client_extra_addons "3782333430"
+     ```
+
+   - If `mm_client_extra_addons` already contains IDs, append `3782333430` with a comma instead of adding a second setting.
+   - Copy `Absynthium_MenuCore.example.json` to `Absynthium_MenuCore.json` in `game/csgo/addons/counterstrikesharp/configs/plugins/Absynthium_MenuCore/`. The example enables Workshop images and defaults to `KeyboardLayout: "AZERTY"`; change it to `QWERTY` when appropriate.
+
+7. In `game/csgo/cfg/cs2-retakes/retakes.cfg`, set `EnableFallbackAllocation` to `false` so cs2-retakes does not compete with RetakesAllocator.
+8. Start the server. RetakesAllocator creates `game/csgo/addons/counterstrikesharp/configs/plugins/RetakesAllocator/config.json`; stop the server, edit it, and start the server again.
+9. Verify the installation:
+
+   - Run `css_plugins list` in the server console and confirm that RetakesAllocator, Absynthium_Menu Core, and PlayerSettings are loaded.
+   - Run `!menus` in game to choose `ButtonMenu`.
+   - Run `!testmenu` as a player with `@css/root` to verify the Workshop images.
+   - Run `!guns` to open the allocator loadout menu.
+
+10. Optional buy-menu support: in `game/csgo/cfg/cs2-retakes/retakes.cfg` set
    `mp_buy_anywhere 1`, `mp_buytime 60000`, `mp_maxmoney 65535`, `mp_startmoney 65535`, `mp_afterroundmoney 65535`.
+
+### Updating an existing installation
+
+1. Stop the server and back up the RetakesAllocator and Absynthium_Menu configuration files, plus the SQLite database if used.
+2. Replace the existing `plugins/RetakesAllocator`, `plugins/Absynthium_MenuCore`, `plugins/PlayerSettings`, `shared/Absynthium_MenuApi`, `shared/AnyBaseLib`, and `shared/PlayerSettingsApi` directories with those from the new ZIP. Do not delete the directories under `configs/plugins/`.
+3. When upgrading from the former SharpModMenu integration, remove its old files only if no other installed plugin still uses them.
+4. Recheck the MultiAddonManager Workshop ID and the Absynthium_Menu settings, then restart the server.
+
+### Menu troubleshooting
+
+- `Absynthium_Menu Core was not found`: reinstall every bundled `plugins/` and `shared/` dependency from the same ZIP, then perform a full server restart rather than a hot reload.
+- Menu text appears but SVG buttons do not: check `UseWorkshopButtonImages`, `ButtonImagePath`, `KeyboardLayout`, MultiAddonManager, and Workshop ID `3782333430`; reconnect clients after the addon has downloaded.
+- `libsqlite3.so.0` cannot be loaded on Linux: install the distribution's SQLite runtime package. RetakesAllocator no longer loads its former `libe_sqlite3.so`, which required `GLIBC_2.33` on the affected servers.
+- Menu choice is not remembered: verify that PlayerSettings and AnyBaseLib are loaded from the bundled `plugins/` and `shared/` directories.
 
 ## How allocation works
 ### Round types
@@ -36,7 +112,7 @@ Round order can be `Random` (weighted), `RandomFixedCounts`, or `ManualOrdering`
 `EnableAllWeaponsForEveryone` lets teams use each other's primaries. `EnableWeaponShotguns` and `EnableWeaponPms` expand full-buy pools with shotguns and SMGs. Preferences never swap weapons mid-round.
 
 ### Player controls
-- **Loadout menu (SharpModMenu)**: type `guns`, `!guns`, `/guns`, or `!gun` (configured by `Config.InGameGunMenuCenterCommands`) to open the menu. It sets primary, secondary, pistol, sniper preference (AWP / SSG / Random / Disabled), enemy-weapon preference (Off / T / CT / Both), and Zeus toggle. Changes apply on the next round.
+- **Loadout menu (Absynthium_Menu)**: type `guns`, `!guns`, `/guns`, or `!gun` (configured by `Config.InGameGunMenuCenterCommands`) to open the SVG button menu. It sets primary, secondary, pistol, sniper preference (AWP / SSG / Random / Disabled), enemy-weapon preference (Off / T / CT / Both), and Zeus toggle. Changes apply on the next round.
 - **Quick commands** (disable with `GunCommandsEnabled`):
   - `!gun <weapon> [T|CT]` / `!removegun <weapon> [T|CT]`
   - `!awp`, `!ssg`, `!zeus`
@@ -420,6 +496,8 @@ The plugin relies on custom signatures for `GetCSWeaponDataFromKey`, `CCSPlayer_
 - `CapabilityWeaponPaints` and `EnableCanAcquireHook` depend on the custom gamedata.
 
 ## Build / dev
-- `compile.ps1` (or `compile.cmd`) builds and copies the plugin; set `CopyPath` to push to a running server (Windows only).
+- Install the .NET 10 SDK and keep the `Absynthium_Menu` repository next to this repository.
+- `compile.ps1` (or `compile.cmd`) rebuilds Absynthium_Menu, builds the plugin, and creates a complete upload-ready ZIP. Set `ABSYNTHIUM_MENU_ROOT` if the menu repository is elsewhere. PlayerSettings 0.9.4 and AnyBaseLib 0.9.4 are downloaded from their official releases and verified by SHA-256.
+- Set `CopyPath` to push a Debug build to a running server (Windows only).
 - Run a local dedicated server with  
   `start cs2.exe -dedicated -insecure +game_type 0 +game_mode 0 +map de_dust2 +servercfgfile server.cfg`.

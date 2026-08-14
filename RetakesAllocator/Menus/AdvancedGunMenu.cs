@@ -5,20 +5,25 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Events;
-using CounterStrikeSharp.API.Modules.Memory;
+using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Utils;
-using CSSUniversalMenuAPI;
 using RetakesAllocator;
 using RetakesAllocatorCore;
 using RetakesAllocatorCore.Config;
 using RetakesAllocatorCore.Db;
+using AbsynthiumMenuApi = Absynthium_Menu.IMenuApi;
 
 namespace RetakesAllocator.AdvancedMenus;
 
 public class AdvancedGunMenu
 {
-    private const string SharpModMenuDriverName = "SharpModMenu";
-    private readonly Dictionary<ulong, IMenu> _openMenus = new();
+    private AbsynthiumMenuApi? _menuApi;
+    private readonly Dictionary<ulong, CCSPlayerController> _openMenus = new();
+
+    public void SetMenuApi(AbsynthiumMenuApi? menuApi)
+    {
+        _menuApi = menuApi;
+    }
 
     public HookResult OnEventPlayerChat(EventPlayerChat @event, GameEventInfo info)
     {
@@ -50,7 +55,7 @@ public class AdvancedGunMenu
 
     public void OnTick()
     {
-        // Menu updates are handled by the SharpModMenu driver.
+        // Menu updates are handled by Absynthium_Menu.
     }
 
     public HookResult OnEventPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
@@ -83,20 +88,15 @@ public class AdvancedGunMenu
             return HookResult.Continue;
         }
 
-        if (!CloseTrackedMenu(player))
-        {
-            return HookResult.Continue;
-        }
-
-        Server.NextFrame(() => ResetMenuMovementFreeze(player));
+        CloseTrackedMenu(player);
         return HookResult.Continue;
     }
 
     public void Cleanup()
     {
-        foreach (var menu in _openMenus.Values.ToArray())
+        foreach (var player in _openMenus.Values.ToArray())
         {
-            CloseMenu(menu);
+            CloseMenu(player);
         }
 
         _openMenus.Clear();
@@ -187,6 +187,13 @@ public class AdvancedGunMenu
 
     private void ShowMenu(CCSPlayerController player, GunMenuData data)
     {
+        if (_menuApi == null)
+        {
+            Log.Error("Absynthium_Menu Core is not loaded. The loadout menu cannot be opened.");
+            Helpers.WriteNewlineDelimited(Translator.Instance["guns_menu.unavailable"], player.PrintToChat);
+            return;
+        }
+
         var teamDisplayName = GetTeamDisplayName(data.Team);
         var menuTitle = Translator.Instance.Raw("guns_menu.title", teamDisplayName);
 
@@ -214,9 +221,18 @@ public class AdvancedGunMenu
 
         CloseTrackedMenu(player);
 
-        var menu = GetMenuApi().CreateMenu(player);
-        menu.Title = menuTitle;
-        _openMenus[player.SteamID] = menu;
+        var menu = _menuApi.GetMenuForcetype(
+            menuTitle,
+            Absynthium_Menu.MenuType.ButtonMenu,
+            resetAction: selectedPlayer => Server.NextFrame(() =>
+            {
+                if (Helpers.PlayerIsValid(selectedPlayer) && _openMenus.ContainsKey(selectedPlayer.SteamID))
+                {
+                    ShowMenu(selectedPlayer, data);
+                }
+            }));
+        menu.PostSelectAction = PostSelectAction.Reset;
+        _openMenus[player.SteamID] = player;
 
         var primaryNames = data.PrimaryOptions.Select(static weapon => weapon.GetName()).ToArray();
         if (primaryNames.Length > 0)
@@ -311,17 +327,7 @@ public class AdvancedGunMenu
                 (ply, choice) => HandleZeusChoice(ply, data, choice, zeusChoices),
                 choice => choice.Equals(zeusChoices[0], StringComparison.Ordinal));
         }
-        menu.Display();
-    }
-
-    private static IMenuAPI GetMenuApi()
-    {
-        if (UniversalMenu.Drivers.TryGetValue(SharpModMenuDriverName, out var sharpModMenu))
-        {
-            return sharpModMenu;
-        }
-
-        throw new InvalidOperationException("SharpModMenu CSSUniversalMenuAPI driver is not loaded. Install SharpModMenu.");
+        menu.Open(player);
     }
 
     private void AddCyclingChoiceMenuItem(
@@ -332,62 +338,40 @@ public class AdvancedGunMenu
         Action<CCSPlayerController, string> onSelect,
         Func<string, bool>? useDisabledFormat = null)
     {
-        var item = parent.CreateItem();
-        item.Title = FormatChoiceTitle(label, getCurrentChoice(), useDisabledFormat);
-        item.Selected += _ =>
+        parent.AddMenuOption(FormatChoiceTitle(label, getCurrentChoice(), useDisabledFormat), (player, _) =>
         {
             var nextChoice = GetNextChoice(choices, getCurrentChoice());
-            onSelect(parent.Player, nextChoice);
-            item.Title = FormatChoiceTitle(label, getCurrentChoice(), useDisabledFormat);
-            parent.Display();
-        };
+            onSelect(player, nextChoice);
+        });
     }
 
     private static void AddDisabledChoiceItem(IMenu menu, string label, string currentChoice)
     {
-        var item = menu.CreateItem();
-        item.Title = Translator.Instance.Raw("guns_menu.choice_disabled_format", label, currentChoice);
-        item.Enabled = false;
+        menu.AddMenuOption(
+            Translator.Instance.Raw("guns_menu.choice_disabled_format", label, currentChoice),
+            static (_, _) => { },
+            disabled: true);
     }
 
     private bool CloseTrackedMenu(CCSPlayerController player)
     {
-        if (!_openMenus.Remove(player.SteamID, out var menu))
+        if (!_openMenus.Remove(player.SteamID))
         {
             return false;
         }
 
-        CloseMenu(menu);
+        CloseMenu(player);
         return true;
     }
 
-    private static void CloseMenu(IMenu menu)
+    private void CloseMenu(CCSPlayerController player)
     {
-        if (!menu.IsActive)
+        if (_menuApi == null || !Helpers.PlayerIsValid(player))
         {
             return;
         }
 
-        menu.Exit();
-    }
-
-    private static void ResetMenuMovementFreeze(CCSPlayerController player)
-    {
-        if (!Helpers.PlayerIsValid(player) || !player.PawnIsAlive)
-        {
-            return;
-        }
-
-        var pawn = player.PlayerPawn.Value;
-        if (pawn is not { IsValid: true })
-        {
-            return;
-        }
-
-        const MoveType_t restoredMoveType = MoveType_t.MOVETYPE_WALK;
-        pawn.MoveType = restoredMoveType;
-        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
-        Schema.GetRef<MoveType_t>(pawn.Handle, "CBaseEntity", "m_nActualMoveType") = restoredMoveType;
+        _menuApi.CloseMenu(player);
     }
 
     private static string FormatChoiceTitle(string label, string currentChoice, Func<string, bool>? useDisabledFormat = null)

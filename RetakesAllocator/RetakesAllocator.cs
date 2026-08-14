@@ -17,15 +17,15 @@ using RetakesAllocator.Menus;
 using RetakesAllocatorCore;
 using RetakesAllocatorCore.Config;
 using RetakesAllocatorCore.Db;
-using SQLitePCL;
 using RetakesAllocator.AdvancedMenus;
 using static RetakesAllocatorCore.PluginInfo;
 using RetakesPluginShared;
 using RetakesPluginShared.Events;
+using AbsynthiumMenuApi = Absynthium_Menu.IMenuApi;
 
 namespace RetakesAllocator;
 
-[MinimumApiVersion(201)]
+[MinimumApiVersion(371)]
 public class RetakesAllocator : BasePlugin
 {
     public override string ModuleName => "Retakes Allocator Plugin";
@@ -35,6 +35,7 @@ public class RetakesAllocator : BasePlugin
 
     private readonly AllocatorMenuManager _allocatorMenuManager = new();
     private readonly AdvancedGunMenu _advancedGunMenu = new();
+    private readonly PluginCapability<AbsynthiumMenuApi?> _menuCapability = new("menu:nfcore");
     private readonly Dictionary<CCSPlayerController, Dictionary<ItemSlotType, CsItem>> _allocatedPlayerItems = new();
     private IRetakesPluginEventSender? RetakesPluginEventSender { get; set; }
 
@@ -64,8 +65,6 @@ public class RetakesAllocator : BasePlugin
 
         Log.Debug($"Loaded. Hot reload: {hotReload}");
         ResetState();
-        Batteries.Init();
-
         foreach (var command in BuyMenuCommands)
         {
             AddCommandListener(command, OnBuyMenuCommand, HookMode.Pre);
@@ -130,6 +129,17 @@ public class RetakesAllocator : BasePlugin
         if (hotReload)
         {
             HandleHotReload();
+        }
+    }
+
+    public override void OnAllPluginsLoaded(bool hotReload)
+    {
+        var menuApi = _menuCapability.Get();
+        _advancedGunMenu.SetMenuApi(menuApi);
+
+        if (menuApi == null)
+        {
+            Log.Error("Absynthium_Menu Core was not found. The loadout menu will be unavailable.");
         }
     }
 
