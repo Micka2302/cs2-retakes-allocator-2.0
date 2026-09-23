@@ -102,7 +102,7 @@ public class AdvancedGunMenu
         _openMenus.Clear();
     }
 
-    private async Task OpenMenuForPlayerAsync(CCSPlayerController player)
+    public async Task OpenMenuForPlayerAsync(CCSPlayerController player, CsTeam? requestedTeam = null)
     {
         if (!Helpers.PlayerIsValid(player))
         {
@@ -115,7 +115,7 @@ public class AdvancedGunMenu
             return;
         }
 
-        var team = Helpers.GetTeam(player);
+        var team = requestedTeam ?? Helpers.GetTeam(player);
         if (team is not CsTeam.Terrorist and not CsTeam.CounterTerrorist)
         {
             Helpers.WriteNewlineDelimited(Translator.Instance["weapon_preference.join_team"], player.PrintToChat);
@@ -185,7 +185,7 @@ public class AdvancedGunMenu
         };
     }
 
-    private void ShowMenu(CCSPlayerController player, GunMenuData data)
+    private void ShowMenu(CCSPlayerController player, GunMenuData data, int? selectedOption = null)
     {
         if (_menuApi == null)
         {
@@ -232,12 +232,14 @@ public class AdvancedGunMenu
                 }
             }));
         menu.PostSelectAction = PostSelectAction.Reset;
+        _menuApi.SetMenuPageNavigationButtonsVisible(menu, false);
+        _menuApi.SetMenuInitialSelection(menu, selectedOption);
         _openMenus[player.SteamID] = player;
 
         var primaryNames = data.PrimaryOptions.Select(static weapon => weapon.GetName()).ToArray();
         if (primaryNames.Length > 0)
         {
-            AddCyclingChoiceMenuItem(menu, Translator.Instance.Raw("weapon_type.primary"), primaryNames,
+            AddWeaponChoiceMenuItem(menu, data, Translator.Instance.Raw("weapon_type.primary"), primaryNames,
                 () => data.CurrentPrimary?.GetName() ?? primaryNames[0],
                 (ply, choice) => HandlePrimaryChoice(ply, data, choice));
         }
@@ -249,7 +251,7 @@ public class AdvancedGunMenu
         var secondaryNames = data.SecondaryOptions.Select(static weapon => weapon.GetName()).ToArray();
         if (secondaryNames.Length > 0)
         {
-            AddCyclingChoiceMenuItem(menu, Translator.Instance.Raw("weapon_type.secondary"), secondaryNames,
+            AddWeaponChoiceMenuItem(menu, data, Translator.Instance.Raw("weapon_type.secondary"), secondaryNames,
                 () => data.CurrentSecondary?.GetName() ?? secondaryNames[0],
                 (ply, choice) => HandleSecondaryChoice(ply, data, choice));
         }
@@ -261,7 +263,7 @@ public class AdvancedGunMenu
         var pistolNames = data.PistolOptions.Select(static weapon => weapon.GetName()).ToArray();
         if (pistolNames.Length > 0)
         {
-            AddCyclingChoiceMenuItem(menu, Translator.Instance.Raw("weapon_type.pistol"), pistolNames,
+            AddWeaponChoiceMenuItem(menu, data, Translator.Instance.Raw("weapon_type.pistol"), pistolNames,
                 () => data.CurrentPistol?.GetName() ?? pistolNames[0],
                 (ply, choice) => HandlePistolChoice(ply, data, choice));
         }
@@ -281,7 +283,7 @@ public class AdvancedGunMenu
                 Translator.Instance.Raw("guns_menu.sniper_disabled")
             };
 
-            AddCyclingChoiceMenuItem(menu, sniperLabel, sniperChoices,
+            AddWeaponChoiceMenuItem(menu, data, sniperLabel, sniperChoices,
                 () => GetCurrentSniperChoice(data, sniperChoices),
                 (ply, choice) => HandleSniperChoice(ply, data, choice, sniperChoices),
                 choice => choice.Equals(sniperChoices[3], StringComparison.Ordinal));
@@ -327,6 +329,78 @@ public class AdvancedGunMenu
                 (ply, choice) => HandleZeusChoice(ply, data, choice, zeusChoices),
                 choice => choice.Equals(zeusChoices[0], StringComparison.Ordinal));
         }
+        menu.Open(player);
+    }
+
+    private void AddWeaponChoiceMenuItem(
+        IMenu parent,
+        GunMenuData data,
+        string label,
+        IReadOnlyList<string> choices,
+        Func<string> getCurrentChoice,
+        Action<CCSPlayerController, string> onSelect,
+        Func<string, bool>? useDisabledFormat = null)
+    {
+        var categoryIndex = parent.MenuOptions.Count;
+        parent.AddMenuOption(FormatChoiceTitle(label, getCurrentChoice(), useDisabledFormat), (player, _) =>
+        {
+            ShowWeaponChoices(player, data, label, choices, getCurrentChoice(), onSelect, categoryIndex);
+        });
+    }
+
+    private void ShowWeaponChoices(
+        CCSPlayerController player,
+        GunMenuData data,
+        string label,
+        IReadOnlyList<string> choices,
+        string currentChoice,
+        Action<CCSPlayerController, string> onSelect,
+        int categoryIndex)
+    {
+        if (_menuApi == null || !Helpers.PlayerIsValid(player))
+        {
+            return;
+        }
+
+        var menu = _menuApi.GetMenuForcetype(
+            Translator.Instance.Raw("guns_menu.selection_title", label),
+            Absynthium_Menu.MenuType.ButtonMenu);
+        // Keep the normal exit control; only selecting an option returns to the loadout.
+        menu.ExitButton = true;
+        _menuApi.SetMenuPageNavigationButtonsVisible(menu, false);
+
+        // Replace the page in the callback; the menu core must not close/reset
+        // the newly opened main page after the weapon has been selected.
+        menu.PostSelectAction = PostSelectAction.Nothing;
+        foreach (var choice in choices)
+        {
+            var isCurrentChoice = choice.Equals(currentChoice, StringComparison.Ordinal);
+            var text = isCurrentChoice
+                ? Translator.Instance.Raw("guns_menu.current_selection", choice)
+                : choice;
+            menu.AddMenuOption(text, (selectedPlayer, _) =>
+            {
+                onSelect(selectedPlayer, choice);
+                ShowMenu(selectedPlayer, data, categoryIndex);
+            });
+        }
+
+        // The API creates its own option instances when opening the page.
+        // Update the actual focused option supplied by the callback.
+        ChatMenuOption? previousOption = null;
+        string previousText = string.Empty;
+        _menuApi.SetMenuOptionFocusChangedHandler(menu, (_, option, _) =>
+        {
+            if (previousOption != null)
+            {
+                previousOption.Text = previousText;
+            }
+
+            previousOption = option;
+            previousText = option.Text;
+            option.Text = Translator.Instance.Raw("guns_menu.focused_selection", previousText);
+        });
+
         menu.Open(player);
     }
 

@@ -240,9 +240,24 @@ public class RetakesAllocator : BasePlugin
     }
 
     [ConsoleCommand("css_gun")]
-    [CommandHelper(usage: "<gun> [T|CT]", whoCanExecute: CommandUsage.CLIENT_ONLY)]
+    [CommandHelper(usage: "[T|CT] or <gun> [T|CT]", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void OnWeaponCommand(CCSPlayerController? player, CommandInfo commandInfo)
     {
+        // A team on its own opens that team's loadout, independently of the
+        // player's current team. Weapon commands keep their existing syntax.
+        var menuTeam = commandInfo.ArgCount == 2
+            ? Utils.ParseTeam(commandInfo.GetArg(1).Trim())
+            : CsTeam.None;
+        if (menuTeam is CsTeam.Terrorist or CsTeam.CounterTerrorist &&
+            !string.IsNullOrWhiteSpace(Configs.GetConfigData().InGameGunMenuCenterCommands))
+        {
+            if (Helpers.PlayerIsValid(player))
+            {
+                _ = _advancedGunMenu.OpenMenuForPlayerAsync(player!, menuTeam);
+            }
+            return;
+        }
+
         if (!Configs.GetConfigData().GunCommandsEnabled)
         {
             commandInfo.ReplyToCommand($"{MessagePrefix}{Translator.Instance["command.gun_disabled"]}");
