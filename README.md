@@ -3,24 +3,27 @@
 Allocator plugin that runs alongside B3none's [cs2-retakes](https://github.com/b3none/cs2-retakes). It picks round types, gives players the right loadouts, and handles sniper queues, enemy-weapon swaps, and Zeus preferences.
 
 ## What's new in 2.6
-- Center-screen Kitsune loadout menu (`guns`, `!guns`, `/guns`) for primaries, pistols, sniper choice, enemy weapons, and Zeus.
+- Center-screen SharpModMenu loadout menu (`guns`, `!guns`, `/guns`) for primaries, pistols, sniper choice, enemy weapons, and Zeus.
 - Sniper system reworked: separate AWP and SSG queues with per-queue access mode (disabled/everyone/VIP), per-team caps and minimum player gates, random sniper option, auto-snipers counted in the AWP queue.
 - Enemy-weapon and Zeus preferences now have permissions, per-team limits, and menu controls.
 - Config file is category-based (legacy keys auto-converted). Shotguns/SMGs can be added to full-buy pools; gun commands can be toggled.
 - Optional bombsite HUD/chat announcements and signature auto-update switches under `Config`.
 
 ## Requirements
-- CounterStrikeSharp server.
+- CounterStrikeSharp 1.0.374 or newer (.NET 10).
 - B3none's cs2-retakes with `EnableFallbackAllocation` disabled.
-- Release zip from this repo (includes sqlite runtimes and KitsuneMenu DLL).
+- Release zip from this repo (includes sqlite runtimes, SharpModMenu, and CSSUniversalMenuAPI).
 
 ## Installation
 1. Stop the server.
 2. Download the latest release from this repo.
-3. Copy the zip contents into `game/csgo/addons/counterstrikesharp/plugins/RetakesAllocator/` (keep the `runtimes/` folder).
+3. Extract `compiled/RetakesAllocator.zip` into `game/csgo/addons/counterstrikesharp/`, preserving its `plugins/`, `shared/`, and `configs/` folders.
 4. Start once to generate `config/config.json`, then edit it (see below).
 5. Optional buy-menu support: in `game/csgo/cfg/cs2-retakes/retakes.cfg` set  
    `mp_buy_anywhere 1`, `mp_buytime 60000`, `mp_maxmoney 65535`, `mp_startmoney 65535`, `mp_afterroundmoney 65535`.
+
+### Building from source
+Use the .NET 10 SDK. Build SharpModMenu in a sibling `SharpModMenu` directory, or set `SHARPMODMENU_ROOT` to its repository path, then run `compile.cmd` on Windows. The script bundles its `compiled/counterstrikesharp` output, including the menu configuration and CSSUniversalMenuAPI, into `compiled/RetakesAllocator.zip`.
 
 ## How allocation works
 ### Round types
@@ -36,7 +39,7 @@ Round order can be `Random` (weighted), `RandomFixedCounts`, or `ManualOrdering`
 `EnableAllWeaponsForEveryone` lets teams use each other's primaries. `EnableWeaponShotguns` and `EnableWeaponPms` expand full-buy pools with shotguns and SMGs. Preferences never swap weapons mid-round.
 
 ### Player controls
-- **Loadout menu (Kitsune)**: type `guns`, `!guns`, `/guns`, or `!gun` (configured by `Config.InGameGunMenuCenterCommands`) to open a center-screen menu. It sets primary, secondary, pistol, sniper preference (AWP / SSG / Random / Disabled), enemy-weapon preference (Off / T / CT / Both), and Zeus toggle. Changes apply on the next round.
+- **Loadout menu (SharpModMenu)**: type `guns`, `!guns`, `/guns`, or `!gun` (configured by `Config.InGameGunMenuCenterCommands`) to open a center-screen menu. It sets primary, secondary, pistol, sniper preference (AWP / SSG / Random / Disabled), enemy-weapon preference (Off / T / CT / Both), and Zeus toggle. Changes apply on the next round.
 - **Quick commands** (disable with `GunCommandsEnabled`):
   - `!gun <weapon> [T|CT]` / `!removegun <weapon> [T|CT]`
   - `!awp`, `!ssg`, `!zeus`

@@ -1,0 +1,22 @@
+{
+	/* SharpModMenu translations */
+	"DefaultLanguage": "en",
+	"Languages": {
+		"en": {
+			"nav.previous": "Previous",
+			"nav.back": "Back",
+			"nav.next": "Next",
+			"nav.close": "Close",
+			"nav.exit": "Close",
+			"nav.compact_message": "Use 8 Previous | 9 Next | 0 Close"
+		},
+		"fr": {
+			"nav.previous": "Precedent",
+			"nav.back": "Retour",
+			"nav.next": "Suivant",
+			"nav.close": "Fermer",
+			"nav.exit": "Fermer",
+			"nav.compact_message": "Utilise 8 Precedent | 9 Suivant | 0 Fermer"
+		}
+	}
+}

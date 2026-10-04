@@ -35,6 +35,14 @@ public class Translator
 
     public string this[string name, params object[] arguments] => Translate(name, arguments);
 
+    public string Raw(string key, params object[] arguments)
+    {
+        var localizedString = _stringLocalizerImplementation[key, arguments];
+        return localizedString == null || localizedString.ResourceNotFound
+            ? key
+            : localizedString.Value;
+    }
+
     private string Translate(string key, params object[] arguments)
     {
         var isCenter = key.StartsWith("center.");

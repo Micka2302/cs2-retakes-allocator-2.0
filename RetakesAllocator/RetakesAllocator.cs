@@ -22,11 +22,10 @@ using RetakesAllocator.AdvancedMenus;
 using static RetakesAllocatorCore.PluginInfo;
 using RetakesPluginShared;
 using RetakesPluginShared.Events;
-using KitsuneMenu.Core;
 
 namespace RetakesAllocator;
 
-[MinimumApiVersion(201)]
+[MinimumApiVersion(374)]
 public class RetakesAllocator : BasePlugin
 {
     public override string ModuleName => "Retakes Allocator Plugin";
@@ -56,7 +55,6 @@ public class RetakesAllocator : BasePlugin
         Log.Debug($"Loaded. Hot reload: {hotReload}");
         ResetState();
         Batteries.Init();
-        KitsuneMenu.KitsuneMenu.Init();
 
         RegisterListener<Listeners.OnMapStart>(mapName =>
         {
@@ -147,7 +145,7 @@ public class RetakesAllocator : BasePlugin
     public override void Unload(bool hotReload)
     {
         Log.Debug("Unloaded");
-        KitsuneMenu.KitsuneMenu.Cleanup();
+        _advancedGunMenu.Cleanup();
         ResetState(loadConfig: false);
         Queries.Disconnect();
 
