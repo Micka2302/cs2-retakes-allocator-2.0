@@ -10,14 +10,14 @@ public abstract class AbstractVoteManager
     protected const float VoteTimeout = 30.0f;
     protected const float EnoughPlayersVotedThreshold = 0.5f;
 
-    private readonly string _voteFor;
+    private readonly string _voteForKey;
     private readonly string _voteCommand;
     private Timer? _voteTimer;
     private readonly Dictionary<CCSPlayerController, string> _votes = new();
 
-    protected AbstractVoteManager(string voteFor, string voteCommand)
+    protected AbstractVoteManager(string voteForKey, string voteCommand)
     {
-        _voteFor = voteFor;
+        _voteForKey = voteForKey;
         _voteCommand = voteCommand;
     }
 
@@ -31,11 +31,11 @@ public abstract class AbstractVoteManager
         {
             _voteTimer = new Timer(VoteTimeout, CompleteVote);
 
-            PrintToServer($"A vote has been started! Type {_voteCommand} to vote!");
+            PrintToServer(Translator.Instance["vote.started", _voteCommand]);
         }
 
         _votes[player] = vote;
-        PrintToPlayer(player, "Your vote has been registered!");
+        PrintToPlayer(player, Translator.Instance["vote.registered"]);
     }
 
     public void CompleteVote()
@@ -83,7 +83,7 @@ public abstract class AbstractVoteManager
         var numPlayers = Helpers.GetNumPlayersOnTeam();
         if (numPlayers == 0 || (float) highestScore / numPlayers < EnoughPlayersVotedThreshold)
         {
-            PrintToServer("Vote failed: Not enough players voted!");
+            PrintToServer(Translator.Instance["vote.failed_not_enough_players"]);
             return;
         }
 
@@ -93,7 +93,7 @@ public abstract class AbstractVoteManager
         HandleVoteResult(chosenVote);
     }
 
-    public string VoteMessagePrefix => $"{PluginInfo.MessagePrefix}[Voting for {_voteFor}] ";
+    public string VoteMessagePrefix => $"{PluginInfo.MessagePrefix}{Translator.Instance["vote.prefix", Translator.Instance[_voteForKey]]}";
 
     protected void PrintToPlayer(CCSPlayerController player, string message)
     {

@@ -114,13 +114,17 @@ public class OnWeaponCommandHelper
             if (isPreferred)
             {
                 await Queries.SetAwpWeaponPreferenceAsync(userId, null);
-                return Ret(Translator.Instance["weapon_preference.unset_preference_preferred", weapon]);
+                return Ret(Translator.Instance["weapon_preference.unset_preference_preferred", weapon.GetName()]);
             }
             else
             {
                 await Queries.SetWeaponPreferenceForUserAsync(userId, team, allocationType.Value, null);
-                return Ret(
-                    Translator.Instance["weapon_preference.unset_preference", weapon, allocationType.Value, team]);
+                return Ret(Translator.Instance[
+                    "weapon_preference.unset_preference",
+                    weapon.GetName(),
+                    GetRoundDisplayName(allocationType.Value, roundType),
+                    Utils.TeamString(team, true)
+                ]);
             }
         }
 
@@ -129,21 +133,22 @@ public class OnWeaponCommandHelper
         {
             await Queries.SetAwpWeaponPreferenceAsync(userId, weapon);
             // If we ever add more preferred weapons, we need to change the wording of "sniper" here
-            message = Translator.Instance["weapon_preference.set_preference_preferred", weapon];
+            message = Translator.Instance["weapon_preference.set_preference_preferred", weapon.GetName()];
         }
         else
         {
             await Queries.SetWeaponPreferenceForUserAsync(userId, team, allocationType.Value, weapon);
-            message = Translator.Instance["weapon_preference.set_preference", weapon, allocationType.Value, team];
+            message = Translator.Instance[
+                "weapon_preference.set_preference",
+                weapon.GetName(),
+                GetRoundDisplayName(allocationType.Value, roundType),
+                Utils.TeamString(team, true)
+            ];
         }
 
         if (allocateImmediately)
         {
             outWeapon = weapon;
-        }
-        else if (!isPreferred)
-        {
-            message += Translator.Instance["weapon_preference.receive_next_round", weaponRoundTypes.First()];
         }
 
         if (userId == 0)
@@ -153,6 +158,21 @@ public class OnWeaponCommandHelper
 
         return Ret(message);
     }
+
+    private static string GetRoundDisplayName(WeaponAllocationType allocationType, RoundType? roundType)
+    {
+        return allocationType switch
+        {
+            WeaponAllocationType.PistolRound => Translator.Instance["weapon_preference.round.pistol"],
+            WeaponAllocationType.HalfBuyPrimary => Translator.Instance["weapon_preference.round.half_buy"],
+            WeaponAllocationType.FullBuyPrimary => Translator.Instance["weapon_preference.round.full_buy"],
+            WeaponAllocationType.Secondary when roundType == RoundType.HalfBuy => Translator.Instance["weapon_preference.round.half_buy"],
+            WeaponAllocationType.Secondary when roundType == RoundType.FullBuy => Translator.Instance["weapon_preference.round.full_buy"],
+            WeaponAllocationType.Secondary => Translator.Instance["weapon_preference.round.buy"],
+            _ => allocationType.ToString(),
+        };
+    }
+
 }
 
 

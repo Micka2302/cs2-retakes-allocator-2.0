@@ -137,6 +137,17 @@ public class NadeHelpers
                     return nadeCount;
                 }
 
+                var normalizedNade = WeaponHelpers.NormalizeUtil(nade);
+                if (normalizedNade != nade && teamNades.TryGetValue(normalizedNade, out nadeCount))
+                {
+                    return nadeCount;
+                }
+
+                if (normalizedNade == CsItem.HE && teamNades.TryGetValue(CsItem.HEGrenade, out nadeCount))
+                {
+                    return nadeCount;
+                }
+
                 if (nade is CsItem.Molotov or CsItem.Incendiary)
                 {
                     var otherNade = nade == CsItem.Molotov ? CsItem.Incendiary : CsItem.Molotov;
@@ -166,8 +177,9 @@ public class NadeHelpers
             {CsItem.Molotov, 1},
             {CsItem.Incendiary, 1},
         };
-        foreach (var nade in nades)
+        foreach (var rawNade in nades)
         {
+            var nade = WeaponHelpers.NormalizeUtil(rawNade);
             if (!allowancePerType.ContainsKey(nade) || allowancePerType[nade] <= 0)
             {
                 return true;

@@ -30,4 +30,14 @@ public class NadeAllocationTests : BaseTestFixture
         NadeHelpers.AllocateNadesToPlayers(new Stack<CsItem>(util), new List<int>(), nadesByPlayer);
         Assert.That(util, Is.EquivalentTo(nadesByPlayer.Values.SelectMany(x => x)));
     }
+
+    [Test]
+    public void HeGrenadeAliasMatchesHe()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(WeaponHelpers.NormalizeUtil(CsItem.HEGrenade), Is.EqualTo(CsItem.HE));
+            Assert.That(WeaponHelpers.IsSameUtil(CsItem.HE, CsItem.HEGrenade), Is.True);
+        });
+    }
 }
